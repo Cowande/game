@@ -1,192 +1,75 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Live Spelers Grid</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            background-color: #1a1a2e;
-            font-family: Arial, sans-serif;
-            padding: 20px;
-            min-height: 100vh;
-        }
-        
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-        
-        h1 {
-            color: white;
-            text-align: center;
-            margin-bottom: 20px;
-        }
-        
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-            gap: 10px;
-            margin-top: 20px;
-        }
-        
-        .grid-cell {
-            aspect-ratio: 1;
-            background-color: #16213e;
-            border: 1px solid #0f3460;
-            border-radius: 5px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-            transition: all 0.3s ease;
-        }
-        
-        .grid-cell.filled {
-            background-color: #e94560;
-            border-color: #e94560;
-        }
-        
-        .player-img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            display: none;
-        }
-        
-        .counter {
-            color: white;
-            text-align: center;
-            margin-top: 20px;
-            font-size: 1.2rem;
-        }
-        
-        .info {
-            color: #8f8f8f;
-            text-align: center;
-            margin-top: 10px;
-            font-size: 0.9rem;
-        }
-    </style>
+<meta charset="UTF-8">
+<title>Live Spelers Grid</title>
+<style>
+  body { font-family:sans-serif; background:#111; color:#fff; display:flex; flex-direction:column; align-items:center; padding:20px;}
+  h1 { margin-bottom:20px;}
+  .grid { display:grid; grid-template-columns:repeat(10,40px); gap:5px;}
+  .cell { width:40px; height:40px; background:#222; border-radius:4px;}
+  .cell.active { background:#4caf50;}
+</style>
 </head>
 <body>
-    <div class="container">
-        <h1>Live Spelers Grid</h1>
-        <div class="grid" id="gridContainer">
-            <!-- Grid cells worden via JavaScript toegevoegd -->
-        </div>
-        <div class="counter">
-            Aantal actieve spelers: <span id="playerCount">0</span>
-        </div>
-        <div class="info">
-            Open een nieuw tabblad met deze pagina om een extra speler toe te voegen
-        </div>
-    </div>
 
-    <script>
-        // Genereer een unieke ID voor deze gebruiker/tab
-        const userId = 'user_' + Math.random().toString(36).substr(2, 9);
-        
-        // Maak het grid met 100 cellen
-        const gridContainer = document.getElementById('gridContainer');
-        const totalCells = 100;
-        
-        for (let i = 0; i < totalCells; i++) {
-            const cell = document.createElement('div');
-            cell.className = 'grid-cell';
-            cell.id = `cell-${i}`;
-            
-            const img = document.createElement('img');
-            img.className = 'player-img';
-            img.src = '32fa4c10-7f81-404e-89d6-5f2f87c5674e.jpg';
-            img.alt = 'Speler';
-            
-            cell.appendChild(img);
-            gridContainer.appendChild(cell);
-        }
-        
-        // Functie om gebruikers op te halen uit localStorage
-        function getUsers() {
-            const users = localStorage.getItem('activeUsers');
-            return users ? JSON.parse(users) : {};
-        }
-        
-        // Functie om gebruikers op te slaan in localStorage
-        function saveUsers(users) {
-            localStorage.setItem('activeUsers', JSON.stringify(users));
-        }
-        
-        // Functie om de grid bij te werken
-        function updateGrid() {
-            const users = getUsers();
-            const userCount = Object.keys(users).length;
-            
-            // Reset alle cellen
-            document.querySelectorAll('.grid-cell').forEach(cell => {
-                cell.classList.remove('filled');
-                cell.querySelector('.player-img').style.display = 'none';
-            });
-            
-            // Vul cellen voor actieve gebruikers
-            Object.values(users).forEach((user, index) => {
-                if (index < totalCells) {
-                    const cell = document.getElementById(`cell-${index}`);
-                    cell.classList.add('filled');
-                    cell.querySelector('.player-img').style.display = 'block';
-                }
-            });
-            
-            // Update teller
-            document.getElementById('playerCount').textContent = userCount;
-        }
-        
-        // Voeg gebruiker toe wanneer de pagina laadt
-        window.addEventListener('load', () => {
-            const users = getUsers();
-            users[userId] = {
-                id: userId,
-                joinTime: new Date().toLocaleTimeString()
-            };
-            saveUsers(users);
-            updateGrid();
-            
-            // Stel een interval in om regelmatig te controleren op inactieve gebruikers
-            setInterval(() => {
-                const users = getUsers();
-                const now = Date.now();
-                let updated = false;
-                
-                // Verwijder gebruikers die langer dan 10 seconden inactief zijn
-                Object.keys(users).forEach(id => {
-                    if (now - users[id].lastActive > 10000 && id !== userId) {
-                        delete users[id];
-                        updated = true;
-                    }
-                });
-                
-                if (updated) {
-                    saveUsers(users);
-                    updateGrid();
-                }
-                
-                // Update de laatste activiteit van de huidige gebruiker
-                users[userId].lastActive = now;
-                saveUsers(users);
-            }, 3000);
-        });
-        
-        // Verwijder gebruiker wanneer het tabblad wordt gesloten
-        window.addEventListener('beforeunload', () => {
-            const users = getUsers();
-            delete users[userId];
-            saveUsers(users);
-        });
-    </script>
+<h1>Live Spelers</h1>
+<div class="grid" id="grid"></div>
+<p>Aantal spelers: <span id="count">0</span></p>
+
+<script>
+const userId = 'u_' + Math.random().toString(36).substr(2, 5);
+const totalCells = 100;
+const grid = document.getElementById('grid');
+
+// Maak grid
+for(let i=0;i<totalCells;i++){
+  const div = document.createElement('div');
+  div.className = 'cell';
+  grid.appendChild(div);
+}
+
+// Functies om users op te slaan/halen
+function getUsers(){ return JSON.parse(localStorage.getItem('users')||'{}'); }
+function saveUsers(users){ localStorage.setItem('users', JSON.stringify(users)); }
+
+// Voeg jezelf toe
+function join(){
+  const users = getUsers();
+  users[userId] = Date.now();
+  saveUsers(users);
+}
+
+// Verwijder jezelf bij afsluiten
+window.addEventListener('beforeunload', ()=> {
+  const users = getUsers();
+  delete users[userId];
+  saveUsers(users);
+});
+
+// Update grid
+function update(){
+  const users = getUsers();
+  const now = Date.now();
+  // verwijder oude users (>10 sec)
+  for(const id in users){
+    if(now - users[id] > 10000) delete users[id];
+  }
+  saveUsers(users);
+
+  const activeUsers = Object.keys(users);
+  document.getElementById('count').textContent = activeUsers.length;
+
+  const cells = document.querySelectorAll('.cell');
+  cells.forEach(c=>c.classList.remove('active'));
+  activeUsers.forEach((_,i)=>{ if(i<cells.length) cells[i].classList.add('active'); });
+}
+
+// Start
+join();
+update();
+setInterval(()=>{ join(); update(); }, 2000);
+</script>
+
 </body>
 </html>
