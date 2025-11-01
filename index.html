@@ -2,7 +2,7 @@
 <html lang="nl">
 <head>
 <meta charset="UTF-8">
-<title>Live Spelers Grid</title>
+<title>Live Spelers Grid Wereldwijd</title>
 <style>
   body { font-family:sans-serif; background:#111; color:#fff; display:flex; flex-direction:column; align-items:center; padding:20px;}
   h1 { margin-bottom:20px;}
@@ -17,58 +17,62 @@
 <div class="grid" id="grid"></div>
 <p>Aantal spelers: <span id="count">0</span></p>
 
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+
 <script>
-const userId = 'u_' + Math.random().toString(36).substr(2, 5);
-const totalCells = 100;
-const grid = document.getElementById('grid');
+  // ====== Firebase Config ======
+  const firebaseConfig = {
+    apiKey: "JE_API_KEY_HIER",
+    authDomain: "JE_PROJECT.firebaseapp.com",
+    databaseURL: "https://zever-7eca0-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "zever-7eca0",
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
 
-// Maak grid
-for(let i=0;i<totalCells;i++){
-  const div = document.createElement('div');
-  div.className = 'cell';
-  grid.appendChild(div);
-}
-
-// Functies om users op te slaan/halen
-function getUsers(){ return JSON.parse(localStorage.getItem('users')||'{}'); }
-function saveUsers(users){ localStorage.setItem('users', JSON.stringify(users)); }
-
-// Voeg jezelf toe
-function join(){
-  const users = getUsers();
-  users[userId] = Date.now();
-  saveUsers(users);
-}
-
-// Verwijder jezelf bij afsluiten
-window.addEventListener('beforeunload', ()=> {
-  const users = getUsers();
-  delete users[userId];
-  saveUsers(users);
-});
-
-// Update grid
-function update(){
-  const users = getUsers();
-  const now = Date.now();
-  // verwijder oude users (>10 sec)
-  for(const id in users){
-    if(now - users[id] > 10000) delete users[id];
+  // ====== Grid Setup ======
+  const totalCells = 100;
+  const grid = document.getElementById('grid');
+  for(let i=0;i<totalCells;i++){
+    const div = document.createElement('div');
+    div.className = 'cell';
+    grid.appendChild(div);
   }
-  saveUsers(users);
 
-  const activeUsers = Object.keys(users);
-  document.getElementById('count').textContent = activeUsers.length;
+  // ====== Unieke gebruiker ======
+  const userId = 'u_' + Math.random().toString(36).substr(2,5);
 
-  const cells = document.querySelectorAll('.cell');
-  cells.forEach(c=>c.classList.remove('active'));
-  activeUsers.forEach((_,i)=>{ if(i<cells.length) cells[i].classList.add('active'); });
-}
+  // Voeg jezelf toe en verwijder bij afsluiten
+  function join() {
+    db.ref('users/'+userId).set({ lastActive: Date.now() });
+    db.ref('users/'+userId).onDisconnect().remove();
+  }
 
-// Start
-join();
-update();
-setInterval(()=>{ join(); update(); }, 2000);
+  // Update grid
+  function updateGrid() {
+    db.ref('users').once('value').then(snapshot=>{
+      const users = snapshot.val() || {};
+      const now = Date.now();
+      // Alleen actieve users (<10 sec)
+      const activeUsers = Object.values(users).filter(u => now - u.lastActive < 10000);
+      document.getElementById('count').textContent = activeUsers.length;
+
+      const cells = document.querySelectorAll('.cell');
+      cells.forEach(c=>c.classList.remove('active'));
+      activeUsers.forEach((_,i)=>{ if(i<cells.length) cells[i].classList.add('active'); });
+    });
+  }
+
+  // ====== Start ======
+  join();
+  updateGrid();
+  setInterval(()=>{
+    // update laatste activiteit
+    db.ref('users/'+userId).update({ lastActive: Date.now() });
+    updateGrid();
+  }, 2000);
 </script>
 
 </body>
