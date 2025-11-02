@@ -1,253 +1,702 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<meta charset="UTF-8">
-<title>Pixel Multiplayer Game - Admin Integrated</title>
+<meta charset="utf-8" />
+<title>Pixel Multiplayer - Clans, Admin & Textures</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
 <style>
-html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#111; }
-canvas { display:block; background:#228B22; }
-#ui {
-  position: fixed; top:0; left:0; width:100%; color:white; font-family:sans-serif;
-  padding:10px; background: rgba(0,0,0,0.5); box-sizing:border-box;
-  z-index:1000; display:flex; gap:20px; font-weight:bold;
-}
-#inventory {
-  position: fixed; bottom:20px; left:50%; transform:translateX(-50%);
-  display:flex; gap:5px; z-index:1000; background:rgba(0,0,0,0.7);
-  padding:10px; border-radius:8px;
-}
-.inv-item { width:40px; height:40px; border:2px solid white; display:flex; align-items:center; justify-content:center; cursor:pointer; }
-.inv-item.selected { border-color:yellow; }
-#hoverInfo {
-  position: fixed; pointer-events:none; background: rgba(0,0,0,0.7);
-  color:white; font-family:sans-serif; padding:2px 5px; border-radius:3px; z-index:2000; display:none;
-}
-#adminPanel {
-  position: fixed; top:50%; left:50%; transform:translate(-50%,-50%);
-  background:rgba(0,0,0,0.9); padding:20px; border-radius:10px;
-  display:none; color:white; font-family:sans-serif; z-index:3000;
-}
-#adminPanel input[type=text], #adminPanel input[type=number], #adminPanel input[type=color] {
-  margin-bottom:10px; display:block; width:200px;
-}
+  :root{
+    --ui-bg: rgba(0,0,0,0.6);
+    --accent: #ffd54f;
+    --muted: #d0d0d0;
+    --panel: #121212cc;
+  }
+  html,body{height:100%;margin:0;background:#0b0b0b;color:white;font-family:Inter,system-ui,Arial;}
+  canvas{display:block;background:#101820;}
+  #topbar{
+    position:fixed;left:0;top:0;right:0;height:48px;background:var(--ui-bg);
+    display:flex;align-items:center;gap:18px;padding:8px 16px;box-sizing:border-box;z-index:2000;
+  }
+  #topbar span{font-weight:600}
+  #coords,#online,#playerClan{opacity:0.9}
+  /* center inventory modal */
+  .modal{
+    position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);min-width:320px;
+    background:var(--panel);border:1px solid rgba(255,255,255,0.08);padding:16px;border-radius:10px;
+    z-index:3000;color:#fff;display:none;
+  }
+  .modal h2{margin:0 0 8px 0;font-size:18px}
+  .modal .row{display:flex;gap:8px;flex-wrap:wrap}
+  .block-slot{width:72px;height:72px;border-radius:8px;border:2px solid rgba(255,255,255,0.08);
+    background:#000 center/cover no-repeat;display:flex;align-items:flex-end;padding:6px;box-sizing:border-box;cursor:pointer;}
+  .block-slot.selected{outline:3px solid var(--accent)}
+  button, input[type=text], input[type=number], select {
+    background:#0d0d0d;border:1px solid rgba(255,255,255,0.06);color:white;padding:8px;border-radius:6px;
+  }
+  #adminPanel{right:16px;top:64px;position:fixed;display:none;padding:12px;z-index:3000;background:var(--panel);border-radius:8px}
+  #clanPanel{left:16px;top:64px;position:fixed;display:none;padding:12px;z-index:3000;background:var(--panel);border-radius:8px;max-width:320px}
+  .tooltip{position:fixed;pointer-events:none;padding:6px 8px;background:#000c;border:1px solid rgba(255,255,255,0.06);border-radius:6px;display:none;z-index:4000}
+  .player-label{position:absolute;transform:translate(-50%,-100%);pointer-events:none;font-size:12px;text-shadow:0 2px 4px rgba(0,0,0,0.8)}
+  /* clan list */
+  .clan-item{padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.04);margin-bottom:8px;background:#0b0b0b}
+  .muted{color:var(--muted);font-size:13px}
+  /* small helpers */
+  .small{font-size:13px}
 </style>
 </head>
 <body>
-<canvas id="gameCanvas"></canvas>
-<div id="ui">
-  <span id="playerName">Naam: ?</span>
+
+<canvas id="game"></canvas>
+
+<div id="topbar">
+  <span id="playerNameLabel">Naam: ?</span>
+  <span id="playerClanLabel" style="margin-left:8px">Clan: -</span>
+  <div style="flex:1"></div>
   <span id="coords">X:0 Y:0</span>
-  <span id="online">Online:0</span>
+  <span id="online" style="margin-left:12px">Online: 0</span>
 </div>
-<div id="inventory">
-  <div class="inv-item" data-type="floor" style="background:lightgreen;" title="Vloer"></div>
-  <div class="inv-item" data-type="wall" style="background:gray;" title="Muur"></div>
-  <div class="inv-item" data-type="wood" style="background:sienna;" title="Hout"></div>
+
+<!-- Inventory modal (E to open) -->
+<div class="modal" id="inventoryModal" aria-hidden="true">
+  <h2>Inventory</h2>
+  <div class="row" id="inventorySlots" style="margin-bottom:12px">
+    <!-- slots filled by JS -->
+  </div>
+  <div class="small muted">Klik een blok om te selecteren. Shift + klik op wereld = verwijderen.</div>
+  <div style="margin-top:12px;text-align:right">
+    <button id="invClose">Sluiten</button>
+  </div>
 </div>
-<div id="hoverInfo"></div>
+
+<!-- Clan modal (first-time or C) -->
+<div class="modal" id="clanModal" aria-hidden="true">
+  <h2>Clan & Nickname</h2>
+  <div id="firstTimeBlock">
+    <div class="small muted">Welkom! Kies eerst je bijnaam (dit kun je later NIET veranderen, alleen admin kan dat).</div>
+    <input id="nickInput" type="text" placeholder="Je bijnaam" style="width:100%;margin-top:8px">
+    <div style="height:10px"></div>
+    <div class="small muted">Kies bestaande clan of maak een nieuwe.</div>
+    <div id="clanListPlaceholder" style="max-height:160px;overflow:auto;margin-top:8px"></div>
+    <div style="margin-top:8px;display:flex;gap:8px">
+      <input id="newClanInput" type="text" placeholder="Nieuwe clan naam" />
+      <button id="createClanBtn">Maak clan</button>
+    </div>
+    <div style="margin-top:12px;text-align:right">
+      <button id="clanCloseBtn">Klaar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Admin panel (TAB only for admin id) -->
 <div id="adminPanel">
-  <h3>Admin Panel (u_yqrok)</h3>
-  <label>Naam: <input type="text" id="adminName"></label>
-  <label>Snelheid: <input type="number" id="adminSpeed" min="1" max="20"></label>
-  <label>Kleur: <input type="color" id="adminColor"></label>
-  <label>Grootte: <input type="number" id="adminSize" min="16" max="128"></label>
-  <label><input type="checkbox" id="trackPlayers"> Track andere spelers</label>
+  <div style="font-weight:700;margin-bottom:8px">Admin (u_yqrok)</div>
+  <label class="small">Naam <input id="adminName" type="text" class="small" /></label><br>
+  <label class="small">Snelheid <input id="adminSpeed" type="number" min="1" max="20" value="4" /></label><br>
+  <label class="small">Kleur <input id="adminColor" type="color" value="#ff4444" /></label><br>
+  <label class="small">Grootte <input id="adminSize" type="number" min="16" max="96" value="32" /></label><br>
+  <label class="small"><input id="adminTrack" type="checkbox"/> Track players</label><br>
+  <div style="margin-top:8px;text-align:right"><button id="adminApply">Apply</button></div>
 </div>
+
+<div class="tooltip" id="tooltip"></div>
 
 <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
 <script>
-const firebaseConfig = {
+/* =========================
+   Configuration & Globals
+   ========================= */
+const FIREBASE_CONFIG = {
   apiKey: "AIzaSyBUgFsK2D_QQtMUQGu-GdMjj8FEeDRE9dA",
   authDomain: "zever-7eca0.firebaseapp.com",
   databaseURL: "https://zever-7eca0-default-rtdb.europe-west1.firebasedatabase.app",
   projectId: "zever-7eca0"
 };
-firebase.initializeApp(firebaseConfig);
+firebase.initializeApp(FIREBASE_CONFIG);
 const db = firebase.database();
 
-// Canvas
-const canvas = document.getElementById('gameCanvas');
+const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
-let tileSize=32;
-function resizeCanvas(){ canvas.width=window.innerWidth; canvas.height=window.innerHeight; }
-window.addEventListener('resize',resizeCanvas);
-resizeCanvas();
+let W=innerWidth, H=innerHeight;
+canvas.width=W; canvas.height=H;
+window.addEventListener('resize', ()=>{ W=innerWidth; H=innerHeight; canvas.width=W; canvas.height=H; });
 
-// Input
-const keys = {};
-window.addEventListener('keydown', e=>keys[e.key]=true);
-window.addEventListener('keyup', e=>keys[e.key]=false);
+const tileSize = 32;
+let camX = 0, camY = 0;
 
-// Admin panel toggle
+const adminId = 'u_yqrok';
+
+/* textures - placeholders (put these files next to the HTML):
+   floor.png, wall.png, wood.png, grass.png, player.png
+*/
+const tex = {};
+['floor','wall','wood','grass','player'].forEach(k=>{
+  tex[k] = new Image();
+  tex[k].src = k + '.png';
+});
+
+/* block definitions */
+const BLOCKS = [
+  { id:'floor', name:'Vloer', tex:'floor', solid:false },
+  { id:'wood',  name:'Hout',  tex:'wood',  solid:false },
+  { id:'wall',  name:'Muur',  tex:'wall',  solid:true },
+  { id:'grass', name:'Grass', tex:'grass', solid:false }
+];
+
+/* UI elements */
+const playerNameLabel = document.getElementById('playerNameLabel');
+const playerClanLabel = document.getElementById('playerClanLabel');
+const coordsLabel = document.getElementById('coords');
+const onlineLabel = document.getElementById('online');
+const tooltip = document.getElementById('tooltip');
+
+const invModal = document.getElementById('inventoryModal');
+const invSlots = document.getElementById('inventorySlots');
+const invClose = document.getElementById('invClose');
+
+const clanModal = document.getElementById('clanModal');
+const clanListPlaceholder = document.getElementById('clanListPlaceholder');
+const nickInput = document.getElementById('nickInput');
+const newClanInput = document.getElementById('newClanInput');
+const createClanBtn = document.getElementById('createClanBtn');
+const clanCloseBtn = document.getElementById('clanCloseBtn');
+
 const adminPanel = document.getElementById('adminPanel');
-let adminVisible=false;
-window.addEventListener('keydown', e=>{
-  if(e.key==='Tab'){
-    e.preventDefault();
-    if(playerId==='u_yqrok'){ adminVisible=!adminVisible; adminPanel.style.display=adminVisible?'block':'none'; }
-  }
+const adminName = document.getElementById('adminName');
+const adminSpeed = document.getElementById('adminSpeed');
+const adminColor = document.getElementById('adminColor');
+const adminSize = document.getElementById('adminSize');
+const adminTrack = document.getElementById('adminTrack');
+const adminApply = document.getElementById('adminApply');
+
+/* runtime state */
+let keys = {};
+window.addEventListener('keydown', e=>{ keys[e.key]=true; });
+window.addEventListener('keyup', e=>{ keys[e.key]=false; });
+
+let local = {
+  id: null,
+  nickname: null,
+  clan: null
+};
+
+let player = null; // local player object (px,py,x,y,speed,w,h,color,name,clan)
+let players = {};  // from firebase
+let mapTiles = {}; // from firebase: key "x,y" => {type}
+
+/* inventory selection: start with nothing */
+let selectedBlock = null;
+
+/* helper: show/hide */
+function show(el){ el.style.display='block'; el.setAttribute('aria-hidden','false'); }
+function hide(el){ el.style.display='none'; el.setAttribute('aria-hidden','true'); }
+
+/* =========================
+   Firebase listeners
+   ========================= */
+db.ref('players').on('value', snap=>{
+  players = snap.val() || {};
+  onlineLabel.innerText = 'Online: ' + Object.keys(players).length;
+});
+db.ref('map').on('value', snap=>{
+  mapTiles = snap.val() || {};
+});
+db.ref('clans').on('value', snap=>{
+  // update clan list UI when modal open
+  if(clanModal.style.display !== 'none') buildClanList(snap.val() || {});
 });
 
-// Player setup
-let playerId, playerName, player, playerColor='red', playerSize=32, playerSpeed=4;
-async function setupPlayer(){
-  if(localStorage.getItem('playerId')){
-    playerId=localStorage.getItem('playerId');
-    playerName=localStorage.getItem('playerName');
-  } else {
-    playerId='u_'+Math.random().toString(36).substr(2,5);
-    const t=await db.ref('userCount').transaction(c=>(c||0)+1);
-    playerName="Speler"+t.snapshot.val();
-    localStorage.setItem('playerId',playerId);
-    localStorage.setItem('playerName',playerName);
-  }
-  document.getElementById('playerName').innerText='Naam:'+playerName;
-  player={x:0,y:0,px:0,py:0,speed:playerSpeed,w:playerSize,h:playerSize,color:playerColor,name:playerName};
-  await db.ref('players/'+playerId).set(player);
-  db.ref('players/'+playerId).onDisconnect().remove();
-  db.ref('players').on('value',snap=>{ allPlayers=snap.val()||{}; document.getElementById('online').innerText='Online:'+Object.keys(allPlayers).length; });
-  db.ref('tiles').on('value',snap=>{ Object.assign(tiles,snap.val()||{}); });
-  requestAnimationFrame(gameLoop);
+/* =========================
+   First-time nickname & clan flow
+   ========================= */
+function isFirstTime(){
+  return !localStorage.getItem('nickname');
 }
-let allPlayers={}, tiles={};
-setupPlayer();
-
-// Smooth
-function lerp(a,b,t){ return a+(b-a)*t; }
-const smoothSpeed=0.15;
-
-// Inventory
-let selectedType=null;
-document.querySelectorAll('.inv-item').forEach(item=>{
-  item.addEventListener('click',()=>{
-    selectedType=item.dataset.type;
-    document.querySelectorAll('.inv-item').forEach(i=>i.classList.remove('selected'));
-    item.classList.add('selected');
+function openFirstTimeModal(){
+  // populate clan list
+  db.ref('clans').once('value').then(snap=>{
+    buildClanList(snap.val() || {});
+    show(clanModal);
   });
+}
+function buildClanList(clans){
+  clanListPlaceholder.innerHTML = '';
+  const c = clans || {};
+  const keys = Object.keys(c).sort();
+  if(keys.length === 0){
+    const el = document.createElement('div'); el.className='muted small'; el.innerText='Nog geen clans — maak er één!';
+    clanListPlaceholder.appendChild(el);
+    return;
+  }
+  keys.forEach(name=>{
+    const item = document.createElement('div');
+    item.className = 'clan-item';
+    const title = document.createElement('div'); title.style.fontWeight='700'; title.innerText = name;
+    const count = document.createElement('div'); count.className='muted'; count.innerText = 'Leden: ' + (c[name].members ? Object.keys(c[name].members).length : 0);
+    const btn = document.createElement('button'); btn.className='small'; btn.style.marginTop='6px'; btn.innerText='Join';
+    btn.onclick = ()=>{ joinClan(name); };
+    item.appendChild(title); item.appendChild(count); item.appendChild(btn);
+    clanListPlaceholder.appendChild(item);
+  });
+}
+
+createClanBtn.addEventListener('click', ()=>{
+  const name = newClanInput.value.trim();
+  if(!name){ alert('Voer een clan naam in'); return; }
+  db.ref('clans/'+name+'/members/' + (local.id || 'tmp')).update({joined:true});
+  joinClan(name);
 });
 
-// Mouse build
-canvas.addEventListener('click', e=>{
-  if(!player||!selectedType) return;
-  const rect=canvas.getBoundingClientRect();
-  const mouseX=e.clientX-rect.left;
-  const mouseY=e.clientY-rect.top;
-  const camX=canvas.width/2-player.px;
-  const camY=canvas.height/2-player.py;
-  const tileX=Math.floor((mouseX-camX)/tileSize);
-  const tileY=Math.floor((mouseY-camY)/tileSize);
-  const key=`${tileX}_${tileY}`;
-  if(keys['Shift']) db.ref('tiles/'+key).remove();
-  else db.ref('tiles/'+key).set({x:tileX,y:tileY,type:selectedType});
+function joinClan(name){
+  if(!local.id) return alert('Nog niet klaar');
+  db.ref('clans/'+name+'/members/'+local.id).set({name:local.nickname});
+  local.clan = name;
+  localStorage.setItem('clan', name);
+  player.clan = name;
+  db.ref('players/'+local.id+'/clan').set(name);
+  playerClanLabelUpdate();
+  hide(clanModal);
+}
+
+/* nickname confirm */
+clanCloseBtn.addEventListener('click', ()=>{
+  const nick = nickInput.value.trim();
+  if(!nick){ alert('Voer een bijnaam in'); return; }
+  // save locally, not editable later by player
+  local.nickname = nick;
+  localStorage.setItem('nickname', nick);
+  // if a clan was selected earlier it is set by joinClan; otherwise default to none
+  hide(clanModal);
+  startOrUpdatePlayer();
 });
 
-// Hover info
-const hoverInfo=document.getElementById('hoverInfo');
-canvas.addEventListener('mousemove', e=>{
-  const rect=canvas.getBoundingClientRect();
-  const mouseX=e.clientX-rect.left;
-  const mouseY=e.clientY-rect.top;
-  const camX=canvas.width/2-player.px;
-  const camY=canvas.height/2-player.py;
-  const tileX=Math.floor((mouseX-camX)/tileSize);
-  const tileY=Math.floor((mouseY-camY)/tileSize);
-  const key=`${tileX}_${tileY}`;
-  if(tiles[key]){
-    hoverInfo.style.display='block';
-    hoverInfo.style.left=e.clientX+10+'px';
-    hoverInfo.style.top=e.clientY+10+'px';
-    hoverInfo.innerText=blockTypes[tiles[key].type]?.name||'Blok';
-  } else hoverInfo.style.display='none';
-});
+/* =========================
+   Player init & update
+   ========================= */
+async function startOrUpdatePlayer(){
+  // ensure id exists
+  if(localStorage.getItem('playerId')){
+    local.id = localStorage.getItem('playerId');
+  } else {
+    local.id = 'u_' + Math.random().toString(36).substr(2,6);
+    localStorage.setItem('playerId', local.id);
+  }
+  // prefer stored nickname
+  if(!local.nickname){
+    local.nickname = localStorage.getItem('nickname') || local.nickname;
+  }
+  // clan
+  local.clan = localStorage.getItem('clan') || local.clan;
 
-// Block types
-const blockTypes={ floor:{color:'lightgreen',walkable:true,name:'Vloer'}, wall:{color:'gray',walkable:false,name:'Muur'}, wood:{color:'sienna',walkable:false,name:'Hout'} };
+  // initial player object
+  player = {
+    px:0, py:0, // pixel pos
+    x:0, y:0,  // grid pos
+    speed: 4,
+    w: 32, h: 32,
+    color: '#ff4444',
+    name: local.nickname || 'Speler',
+    clan: local.clan || null
+  };
 
-// Admin inputs
-const adminName=document.getElementById('adminName');
-const adminSpeed=document.getElementById('adminSpeed');
-const adminColor=document.getElementById('adminColor');
-const adminSize=document.getElementById('adminSize');
-const trackPlayers=document.getElementById('trackPlayers');
-adminName.addEventListener('input',()=>{ playerName=adminName.value; });
-adminSpeed.addEventListener('input',()=>{ playerSpeed=parseFloat(adminSpeed.value); });
-adminColor.addEventListener('input',()=>{ playerColor=adminColor.value; });
-adminSize.addEventListener('input',()=>{ playerSize=parseFloat(adminSize.value); });
+  // write to firebase
+  await db.ref('players/' + local.id).set(player);
+  db.ref('players/' + local.id).onDisconnect().remove();
 
-// Collision
-function isColliding(px,py){
-  const corners=[[px,py],[px+playerSize-1,py],[px,py+playerSize-1],[px+playerSize-1,py+playerSize-1]];
-  for(const c of corners){
-    const tx=Math.floor(c[0]/tileSize);
-    const ty=Math.floor(c[1]/tileSize);
-    const key=`${tx}_${ty}`;
-    if(tiles[key] && !blockTypes[tiles[key].type].walkable) return true;
+  // show labels
+  playerNameLabel.innerText = 'Naam: ' + (player.clan ? '['+player.clan+'] ' : '') + player.name;
+  playerClanLabel.innerText = 'Clan: ' + (player.clan || '-');
+}
+
+/* =========================
+   Inventory UI
+   ========================= */
+function buildInventoryUI(){
+  invSlots.innerHTML = '';
+  BLOCKS.forEach(b=>{
+    const slot = document.createElement('div');
+    slot.className = 'block-slot';
+    slot.style.backgroundImage = `url(${b.tex}.png)`;
+    slot.title = b.name;
+    slot.onclick = ()=> {
+      // toggle select
+      if(selectedBlock && selectedBlock.id === b.id){
+        selectedBlock = null;
+        slot.classList.remove('selected');
+      } else {
+        selectedBlock = b;
+        // clear other selected
+        invSlots.querySelectorAll('.block-slot').forEach(s=>s.classList.remove('selected'));
+        slot.classList.add('selected');
+      }
+    };
+    const label = document.createElement('div');
+    label.style.fontSize='12px'; label.style.color='white'; label.style.textShadow='0 1px 2px black';
+    label.innerText = b.name;
+    slot.appendChild(label);
+    invSlots.appendChild(slot);
+  });
+}
+invClose.addEventListener('click', ()=>{ hide(invModal); });
+
+/* =========================
+   Placement rules
+   - cannot place if a block already exists
+   - cannot place if a player currently occupies the tile
+   ========================= */
+function worldKey(tx,ty){ return tx + ',' + ty; }
+function tileOccupiedByPlayer(tx,ty){
+  for(const id in players){
+    const p = players[id];
+    // compare grid coords (assuming p.px/p.py are pixels)
+    const px = Math.floor((p.px + (p.w||32)/2) / tileSize);
+    const py = Math.floor((p.py + (p.h||32)/2) / tileSize);
+    if(px === tx && py === ty) return true;
+  }
+  // also check local player
+  if(player){
+    const lpx = Math.floor((player.px + player.w/2) / tileSize);
+    const lpy = Math.floor((player.py + player.h/2) / tileSize);
+    if(lpx === tx && lpy === ty) return true;
   }
   return false;
 }
 
-// Game loop
-function gameLoop(){
-  if(!player){ requestAnimationFrame(gameLoop); return; }
+/* mouse -> world tile coords */
+function screenToTile(mx,my){
+  const wx = mx - (W/2 - player.px);
+  const wy = my - (H/2 - player.py);
+  const tx = Math.floor(wx / tileSize);
+  const ty = Math.floor(wy / tileSize);
+  return {tx,ty};
+}
 
-  let targetPx=player.px;
-  let targetPy=player.py;
-  if(keys['ArrowUp'] && !isColliding(targetPx, targetPy-playerSpeed)) targetPy-=playerSpeed;
-  if(keys['ArrowDown'] && !isColliding(targetPx, targetPy+playerSpeed)) targetPy+=playerSpeed;
-  if(keys['ArrowLeft'] && !isColliding(targetPx-playerSpeed, targetPy)) targetPx-=playerSpeed;
-  if(keys['ArrowRight'] && !isColliding(targetPx+playerSpeed, targetPy)) targetPx+=playerSpeed;
+/* place/remove blocks */
+canvas.addEventListener('click', (ev)=>{
+  if(!selectedBlock) return; // nothing in hand
+  const r = canvas.getBoundingClientRect();
+  const mx = ev.clientX - r.left, my = ev.clientY - r.top;
+  const {tx,ty} = screenToTile(mx,my);
+  const key = worldKey(tx,ty);
+  // block exists?
+  if(mapTiles[key]) { alert('Er staat al een blok op die plek'); return; }
+  // player there?
+  if(tileOccupiedByPlayer(tx,ty)) { alert('Kan hier geen blok plaatsen: speler aanwezig'); return; }
+  // place
+  db.ref('map/' + key).set({ type: selectedBlock.id });
+});
 
-  player.px=lerp(player.px,targetPx,smoothSpeed);
-  player.py=lerp(player.py,targetPy,smoothSpeed);
-  player.x=Math.floor(player.px/tileSize);
-  player.y=Math.floor(player.py/tileSize);
+/* right click to remove */
+canvas.addEventListener('contextmenu', (ev)=>{
+  ev.preventDefault();
+  const r = canvas.getBoundingClientRect();
+  const mx = ev.clientX - r.left, my = ev.clientY - r.top;
+  const {tx,ty} = screenToTile(mx,my);
+  const key = worldKey(tx,ty);
+  // only allow remove if you're admin or owner? For now anyone can remove
+  if(mapTiles[key]){
+    db.ref('map/' + key).remove();
+  }
+});
 
-  // update Firebase
-  db.ref('players/'+playerId).set({x:player.x,y:player.y,px:player.px,py:player.py,w:playerSize,h:playerSize,color:playerColor,name:playerName});
+/* =========================
+   Movement & collision
+   Strict collision: check all corners after intended move
+   ========================= */
+function isSolidAtTile(tx,ty){
+  const key = worldKey(tx,ty);
+  const tile = mapTiles[key];
+  if(!tile) return false;
+  const b = BLOCKS.find(bb => bb.id === tile.type);
+  return b ? b.solid : false;
+}
 
-  const camX=canvas.width/2-player.px;
-  const camY=canvas.height/2-player.py;
+/* check player AABB for collision at new px,py */
+function collidesAt(px,py){
+  // check four corners in world pixels -> tiles
+  const corners = [
+    {x:px, y:py},
+    {x:px + player.w - 1, y:py},
+    {x:px, y:py + player.h - 1},
+    {x:px + player.w - 1, y:py + player.h - 1}
+  ];
+  for(const c of corners){
+    const tx = Math.floor((c.x + player.w/2) / tileSize); // center-based mapping to be robust
+    const ty = Math.floor((c.y + player.h/2) / tileSize);
+    if(isSolidAtTile(tx,ty)) return true;
+  }
+  return false;
+}
 
-  // Background
-  ctx.fillStyle='#228B22';
-  ctx.fillRect(0,0,canvas.width,canvas.height);
+/* =========================
+   Admin panel behavior
+   ========================= */
+window.addEventListener('keydown', (e)=>{
+  if(e.key === 'Tab'){
+    e.preventDefault();
+    if(local.id === adminId){
+      adminPanel.style.display = adminPanel.style.display === 'block' ? 'none' : 'block';
+      // fill current
+      adminName.value = player.name;
+      adminSpeed.value = player.speed;
+      adminColor.value = player.color;
+      adminSize.value = player.w;
+    } else {
+      // open clan panel as quick-access if not admin
+      clanModal.style.display = clanModal.style.display === 'block' ? 'none' : 'block';
+    }
+  } else if(e.key === 'e' || e.key === 'E'){
+    // toggle inventory
+    invModal.style.display = invModal.style.display === 'block' ? 'none' : 'block';
+  } else if(e.key === 'c' || e.key === 'C'){
+    clanModal.style.display = clanModal.style.display === 'block' ? 'none' : 'block';
+  }
+});
 
-  // Grid
-  const startCol=Math.floor(-camX/tileSize)-1;
-  const endCol=Math.floor((canvas.width-camX)/tileSize)+1;
-  const startRow=Math.floor(-camY/tileSize)-1;
-  const endRow=Math.floor((canvas.height-camY)/tileSize)+1;
-  ctx.strokeStyle='rgba(0,100,0,0.5)'; ctx.lineWidth=1;
-  for(let i=startCol;i<=endCol;i++){ ctx.beginPath(); ctx.moveTo(i*tileSize+camX,startRow*tileSize+camY); ctx.lineTo(i*tileSize+camX,endRow*tileSize+camY); ctx.stroke(); }
-  for(let j=startRow;j<=endRow;j++){ ctx.beginPath(); ctx.moveTo(startCol*tileSize+camX,j*tileSize+camY); ctx.lineTo(endCol*tileSize+camX,j*tileSize+camY); ctx.stroke(); }
+adminApply.addEventListener('click', ()=>{
+  if(local.id !== adminId) return alert('Alleen admin');
+  // apply to player and update firebase
+  player.name = adminName.value || player.name;
+  player.speed = parseFloat(adminSpeed.value) || player.speed;
+  player.color = adminColor.value || player.color;
+  const size = parseInt(adminSize.value) || player.w;
+  player.w = player.h = size;
+  db.ref('players/' + local.id).update({ name: player.name, speed: player.speed, color: player.color, w: player.w, h: player.h});
+  // update label (admin can change nickname)
+  playerNameLabel.innerText = 'Naam: ' + (player.clan ? '['+player.clan+'] ' : '') + player.name;
+  adminPanel.style.display = 'none';
+});
 
-  // Draw tiles
-  for(const key in tiles){
-    const t=tiles[key];
-    ctx.fillStyle=blockTypes[t.type]?.color||'white';
-    ctx.fillRect(t.x*tileSize+camX,t.y*tileSize+camY,tileSize,tileSize);
+/* =========================
+   Rendering & Main Loop
+   ========================= */
+function updateAndRender(){
+  // basic movement - intended pixel move
+  let intendedX = player.px;
+  let intendedY = player.py;
+  const moveSpeed = player.speed;
+  if(keys['ArrowUp'] || keys['w']) intendedY -= moveSpeed;
+  if(keys['ArrowDown'] || keys['s']) intendedY += moveSpeed;
+  if(keys['ArrowLeft'] || keys['a']) intendedX -= moveSpeed;
+  if(keys['ArrowRight'] || keys['d']) intendedX += moveSpeed;
+
+  // do per-axis collision to avoid corner-sticking
+  // try X move
+  if(!collidesAt(intendedX, player.py)) player.px = intendedX;
+  // try Y move
+  if(!collidesAt(player.px, intendedY)) player.py = intendedY;
+
+  // update grid coords
+  player.x = Math.floor((player.px + player.w/2) / tileSize);
+  player.y = Math.floor((player.py + player.h/2) / tileSize);
+
+  // push to firebase (lightweight)
+  db.ref('players/' + local.id).update({ px: player.px, py: player.py, x: player.x, y: player.y, name: player.name, clan: player.clan, color: player.color, w: player.w, h: player.h });
+
+  // camera: center on local player
+  camX = W/2 - player.px;
+  camY = H/2 - player.py;
+
+  // clear
+  ctx.fillStyle = '#2b2b2b';
+  ctx.fillRect(0,0,W,H);
+
+  // draw grid world bounds (just visible area)
+  const startTileX = Math.floor((-camX) / tileSize) - 1;
+  const endTileX = Math.floor((W - camX) / tileSize) + 1;
+  const startTileY = Math.floor((-camY) / tileSize) - 1;
+  const endTileY = Math.floor((H - camY) / tileSize) + 1;
+
+  // draw tiles
+  for(let tx = startTileX; tx <= endTileX; tx++){
+    for(let ty = startTileY; ty <= endTileY; ty++){
+      const key = worldKey(tx,ty);
+      const tile = mapTiles[key];
+      if(tile){
+        const b = BLOCKS.find(bb => bb.id === tile.type);
+        const img = tex[b.tex];
+        if(img.complete) ctx.drawImage(img, tx*tileSize + camX, ty*tileSize + camY, tileSize, tileSize);
+        else {
+          ctx.fillStyle = b.solid ? '#666' : '#3a3';
+          ctx.fillRect(tx*tileSize + camX, ty*tileSize + camY, tileSize, tileSize);
+        }
+      } else {
+        // optional light grid/ground texture fallback: draw grass as background tile
+        const img = tex['grass'];
+        if(img.complete) ctx.drawImage(img, tx*tileSize + camX, ty*tileSize + camY, tileSize, tileSize);
+      }
+    }
   }
 
-  // Draw players
-  for(const id in allPlayers){
-    const p=allPlayers[id];
-    ctx.fillStyle=p.color || (id===playerId?'red':'cyan');
-    ctx.fillRect(p.px+camX,p.py+camY,p.w||32,p.h||32);
-    ctx.fillStyle='white'; ctx.font='12px sans-serif'; ctx.textAlign='center';
-    ctx.fillText(p.name,p.px+camX+(p.w||32)/2,p.py+camY-4);
+  // draw other players
+  for(const id in players){
+    const p = players[id];
+    // draw sprite if available
+    const imgP = tex['player'];
+    const pw = p.w || 32, ph = p.h || 32;
+    if(imgP.complete) ctx.drawImage(imgP, p.px + camX, p.py + camY, pw, ph);
+    else {
+      ctx.fillStyle = p.color || '#44f';
+      ctx.fillRect(p.px + camX, p.py + camY, pw, ph);
+    }
+    // name + clan
+    const displayName = (p.clan ? '['+p.clan+'] ' : '') + (p.name || 'Speler');
+    ctx.fillStyle = 'white';
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(displayName, p.px + camX + (pw/2), p.py + camY - 6);
 
-    if(playerId==='u_yqrok' && trackPlayers.checked && id!==playerId){
-      ctx.strokeStyle='yellow'; ctx.beginPath();
-      ctx.moveTo(player.px+camX+playerSize/2,player.py+camY+playerSize/2);
-      ctx.lineTo(p.px+camX+(p.w||32)/2,p.py+camY+(p.h||32)/2);
+    // if admin tracking
+    if(local.id === adminId && adminTrack.checked && id !== local.id){
+      ctx.strokeStyle = 'yellow';
+      ctx.beginPath();
+      ctx.moveTo(player.px + camX + player.w/2, player.py + camY + player.h/2);
+      ctx.lineTo(p.px + camX + (pw/2), p.py + camY + (ph/2));
       ctx.stroke();
     }
   }
 
-  document.getElementById('coords').innerText='X:'+player.x+' Y:'+player.y;
-  requestAnimationFrame(gameLoop);
+  // local player highlight on top
+  const lpImg = tex['player'];
+  if(lpImg.complete) ctx.drawImage(lpImg, player.px + camX, player.py + camY, player.w, player.h);
+  else { ctx.fillStyle = player.color; ctx.fillRect(player.px + camX, player.py + camY, player.w, player.h); }
+  ctx.fillStyle = 'white';
+  ctx.font = '12px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText((player.clan? '['+player.clan+'] ':'') + player.name, player.px + camX + player.w/2, player.py + camY - 6);
+
+  // UI labels
+  coordsLabel.innerText = 'X:' + player.x + ' Y:' + player.y;
+  playerNameLabel.innerText = 'Naam: ' + (player.clan? '['+player.clan+'] ':'') + player.name;
+  playerClanLabel.innerText = 'Clan: ' + (player.clan || '-');
+
+  requestAnimationFrame(updateAndRender);
 }
+
+/* helpers */
+function worldKey(tx,ty){ return tx + ',' + ty; }
+
+/* =========================
+   Init flows
+   ========================= */
+function init(){
+  // build inventory slots
+  buildInventoryUI();
+
+  // set initial selectedBlock to null (nothing held)
+  selectedBlock = null;
+
+  // first-time flow
+  if(isFirstTime()){
+    // show clan/nickname modal
+    show(clanModal);
+    // prefill clan list
+    db.ref('clans').once('value').then(snap=> buildClanList(snap.val()||{}) );
+  } else {
+    // load nickname/clan from storage
+    local.nickname = localStorage.getItem('nickname');
+    local.clan = localStorage.getItem('clan') || null;
+    startOrUpdatePlayer();
+    requestAnimationFrame(updateAndRender);
+  }
+}
+
+/* helper: after first time user set nickname, call startOrUpdatePlayer() */
+startOrUpdatePlayer = async function(){
+  // (override earlier stub to ensure ready)
+  if(!local.id){
+    if(localStorage.getItem('playerId')) local.id = localStorage.getItem('playerId');
+    else { local.id = 'u_' + Math.random().toString(36).substr(2,6); localStorage.setItem('playerId', local.id); }
+  }
+  if(!local.nickname) local.nickname = localStorage.getItem('nickname') || ('Speler'+Math.floor(Math.random()*9999));
+  if(!local.clan) local.clan = localStorage.getItem('clan') || null;
+
+  player = {
+    px: 0, py: 0,
+    x: 0, y: 0,
+    speed: 4,
+    w: 32, h: 32,
+    color: '#ff4444',
+    name: local.nickname,
+    clan: local.clan
+  };
+
+  await db.ref('players/' + local.id).set(player);
+  db.ref('players/' + local.id).onDisconnect().remove();
+
+  // mark clan membership in db if set
+  if(local.clan) db.ref('clans/'+local.clan+'/members/'+local.id).set({ name: local.nickname });
+
+  // start loop
+  requestAnimationFrame(updateAndRender);
+};
+
+/* when the user finishes clan/nickname first-time modal */
+clanCloseBtn.addEventListener('click', ()=>{
+  const nick = nickInput.value.trim();
+  if(!nick){ alert('Voer een bijnaam in.'); return; }
+  local.nickname = nick;
+  localStorage.setItem('nickname', nick);
+  // if they typed a clan in the newClanInput, auto-create and join
+  const newClan = newClanInput.value.trim();
+  if(newClan){
+    db.ref('clans/'+newClan+'/members/'+ (local.id || 'tmp') ).set({ name: nick });
+    local.clan = newClan;
+    localStorage.setItem('clan', newClan);
+  }
+  hide(clanModal);
+  startOrUpdatePlayer();
+});
+
+/* clicking join in clan list uses joinClan() defined earlier (in buildClanList)
+   we ensure joinClan uses local.id (available after startOrUpdatePlayer), so for first-time
+   clicking join we temporarily store the choice and apply after player creation. For simplicity,
+   join via the list after player exists (clan modal also shows on pressing C).
+*/
+
+/* joinClan helper (used by buildClanList) */
+function joinClan(name){
+  if(!local.id){
+    // not created yet; store choice and create after start
+    local.clan = name;
+    localStorage.setItem('clan', name);
+    // visually keep modal open; user must click "Klaar"
+    alert('Je clan wordt ingesteld zodra je klaar bent.');
+    return;
+  }
+  db.ref('clans/'+name+'/members/'+local.id).set({ name: local.nickname });
+  local.clan = name;
+  localStorage.setItem('clan', name);
+  if(player){ player.clan = name; db.ref('players/'+local.id+'/clan').set(name); }
+  hide(clanModal);
+}
+
+/* clicking create clan in first-time modal is wired above; also allow creation later */
+createClanBtn.addEventListener('click', ()=>{
+  const name = newClanInput.value.trim();
+  if(!name) return alert('Voer een clan naam in');
+  if(!local.id){
+    // store and will create after player creation
+    local.clan = name;
+    localStorage.setItem('clan', name);
+    alert('Clan wordt aangemaakt zodra je klaar bent.');
+    return;
+  }
+  // create clan entry and add member
+  db.ref('clans/'+name+'/members/'+local.id).set({ name: local.nickname });
+  local.clan = name;
+  localStorage.setItem('clan', name);
+  if(player) { player.clan = name; db.ref('players/'+local.id+'/clan').set(name); }
+  hide(clanModal);
+});
+
+/* when inventory toggled via UI close/open, selection persists, but nothing selected by default.
+   open inventory with E (handled above).
+*/
+
+/* finally, initialize */
+init();
+
 </script>
 </body>
 </html>
