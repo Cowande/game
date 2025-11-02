@@ -2,78 +2,170 @@
 <html lang="nl">
 <head>
 <meta charset="UTF-8">
-<title>Live Spelers Grid Wereldwijd</title>
+<title>Pixel Multiplayer Map - Multiplayer Fix</title>
 <style>
-  body { font-family:sans-serif; background:#111; color:#fff; display:flex; flex-direction:column; align-items:center; padding:20px;}
-  h1 { margin-bottom:20px;}
-  .grid { display:grid; grid-template-columns:repeat(10,40px); gap:5px;}
-  .cell { width:40px; height:40px; background:#222; border-radius:4px;}
-  .cell.active { background:#4caf50;}
+html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#111; }
+canvas { display:block; background:#228B22; }
+#ui {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  color: white;
+  font-family: sans-serif;
+  padding: 10px;
+  background: rgba(0,0,0,0.5);
+  box-sizing: border-box;
+  z-index: 1000;
+  pointer-events: none;
+  display: flex;
+  gap: 20px;
+  font-weight: bold;
+}
 </style>
 </head>
 <body>
+<canvas id="gameCanvas"></canvas>
+<div id="ui">
+  <span id="playerName">Naam: ?</span>
+  <span id="coords">X: 0 Y: 0</span>
+  <span id="online">Online: 0</span>
+</div>
 
-<h1>Live Spelers</h1>
-<div class="grid" id="grid"></div>
-<p>Aantal spelers: <span id="count">0</span></p>
-
-<!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
 
 <script>
-  // ====== Firebase Config ======
-  const firebaseConfig = {
-    apiKey: "JE_API_KEY_HIER",
-    authDomain: "JE_PROJECT.firebaseapp.com",
-    databaseURL: "https://zever-7eca0-default-rtdb.europe-west1.firebasedatabase.app",
-    projectId: "zever-7eca0",
-  };
-  firebase.initializeApp(firebaseConfig);
-  const db = firebase.database();
+const firebaseConfig = {
+  apiKey: "AIzaSyBUgFsK2D_QQtMUQGu-GdMjj8FEeDRE9dA",
+  authDomain: "zever-7eca0.firebaseapp.com",
+  databaseURL: "https://zever-7eca0-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "zever-7eca0"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
 
-  // ====== Grid Setup ======
-  const totalCells = 100;
-  const grid = document.getElementById('grid');
-  for(let i=0;i<totalCells;i++){
-    const div = document.createElement('div');
-    div.className = 'cell';
-    grid.appendChild(div);
-  }
+// Canvas setup
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+let tileSize = 32;
 
-  // ====== Unieke gebruiker ======
-  const userId = 'u_' + Math.random().toString(36).substr(2,5);
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
 
-  // Voeg jezelf toe en verwijder bij afsluiten
-  function join() {
-    db.ref('users/'+userId).set({ lastActive: Date.now() });
-    db.ref('users/'+userId).onDisconnect().remove();
-  }
+// Movement
+const keys = {};
+window.addEventListener('keydown', e => keys[e.key] = true);
+window.addEventListener('keyup', e => keys[e.key] = false);
 
-  // Update grid
-  function updateGrid() {
-    db.ref('users').once('value').then(snapshot=>{
-      const users = snapshot.val() || {};
-      const now = Date.now();
-      // Alleen actieve users (<10 sec)
-      const activeUsers = Object.values(users).filter(u => now - u.lastActive < 10000);
-      document.getElementById('count').textContent = activeUsers.length;
+let playerId, playerName, player;
 
-      const cells = document.querySelectorAll('.cell');
-      cells.forEach(c=>c.classList.remove('active'));
-      activeUsers.forEach((_,i)=>{ if(i<cells.length) cells[i].classList.add('active'); });
+// Setup player
+async function setupPlayer() {
+  // Uniek ID en naam
+  if(localStorage.getItem('playerId')) {
+    playerId = localStorage.getItem('playerId');
+    playerName = localStorage.getItem('playerName');
+  } else {
+    playerId = 'u_' + Math.random().toString(36).substr(2,5);
+    const t = await db.ref('userCount').transaction(count=>{
+      if(count===null) return 1;
+      return count+1;
     });
+    playerName = t.snapshot.val();
+    localStorage.setItem('playerId', playerId);
+    localStorage.setItem('playerName', playerName);
+  }
+  document.getElementById('playerName').innerText = 'Naam: ' + playerName;
+
+  // Player init
+  player = { x: 0, y: 0, px:0, py:0, speed: 4 };
+  const playerRef = db.ref('players/' + playerId);
+  await playerRef.set(player);
+  playerRef.onDisconnect().remove();
+
+  // Start listening naar alle spelers
+  db.ref('players').on('value', snapshot => {
+    allPlayers = snapshot.val() || {};
+    document.getElementById('online').innerText = 'Online: ' + Object.keys(allPlayers).length;
+  });
+
+  requestAnimationFrame(gameLoop);
+}
+
+let allPlayers = {};
+setupPlayer();
+
+// Smooth movement helper
+function lerp(a,b,t){ return a + (b-a)*t; }
+const smoothSpeed = 0.15;
+
+// Game loop
+function gameLoop() {
+  if(!player) { requestAnimationFrame(gameLoop); return; }
+
+  // Movement
+  let targetPx = player.px;
+  let targetPy = player.py;
+  if(keys['ArrowUp']) targetPy -= player.speed;
+  if(keys['ArrowDown']) targetPy += player.speed;
+  if(keys['ArrowLeft']) targetPx -= player.speed;
+  if(keys['ArrowRight']) targetPx += player.speed;
+
+  player.px = lerp(player.px, targetPx, smoothSpeed);
+  player.py = lerp(player.py, targetPy, smoothSpeed);
+
+  player.x = Math.round(player.px / tileSize);
+  player.y = Math.round(player.py / tileSize);
+
+  // Update database
+  db.ref('players/' + playerId).set({ x: player.x, y: player.y, px: player.px, py: player.py });
+
+  // Camera
+  const camX = canvas.width/2 - player.px;
+  const camY = canvas.height/2 - player.py;
+
+  // Background
+  ctx.fillStyle = '#228B22';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  // Grid
+  const startCol = Math.floor(-camX / tileSize) - 1;
+  const endCol = Math.floor((canvas.width - camX) / tileSize) + 1;
+  const startRow = Math.floor(-camY / tileSize) - 1;
+  const endRow = Math.floor((canvas.height - camY) / tileSize) + 1;
+
+  ctx.strokeStyle = 'rgba(0,100,0,0.5)';
+  ctx.lineWidth = 1;
+  for(let i=startCol;i<=endCol;i++){
+    ctx.beginPath();
+    ctx.moveTo(i*tileSize + camX, startRow*tileSize + camY);
+    ctx.lineTo(i*tileSize + camX, endRow*tileSize + camY);
+    ctx.stroke();
+  }
+  for(let j=startRow;j<=endRow;j++){
+    ctx.beginPath();
+    ctx.moveTo(startCol*tileSize + camX, j*tileSize + camY);
+    ctx.lineTo(endCol*tileSize + camX, j*tileSize + camY);
+    ctx.stroke();
   }
 
-  // ====== Start ======
-  join();
-  updateGrid();
-  setInterval(()=>{
-    // update laatste activiteit
-    db.ref('users/'+userId).update({ lastActive: Date.now() });
-    updateGrid();
-  }, 2000);
-</script>
+  // Draw players
+  for(const id in allPlayers){
+    const p = allPlayers[id];
+    ctx.fillStyle = id === playerId ? 'red' : 'cyan';
+    ctx.fillRect(p.px + camX, p.py + camY, tileSize, tileSize);
+  }
 
+  // Update UI
+  document.getElementById('coords').innerText = `X: ${player.x} Y: ${player.y}`;
+
+  requestAnimationFrame(gameLoop);
+}
+</script>
 </body>
 </html>
