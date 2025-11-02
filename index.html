@@ -2,25 +2,33 @@
 <html lang="nl">
 <head>
 <meta charset="UTF-8">
-<title>Pixel Multiplayer Map - Multiplayer Fix</title>
+<title>Pixel Multiplayer Game - Admin Integrated</title>
 <style>
 html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#111; }
 canvas { display:block; background:#228B22; }
 #ui {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  color: white;
-  font-family: sans-serif;
-  padding: 10px;
-  background: rgba(0,0,0,0.5);
-  box-sizing: border-box;
-  z-index: 1000;
-  pointer-events: none;
-  display: flex;
-  gap: 20px;
-  font-weight: bold;
+  position: fixed; top:0; left:0; width:100%; color:white; font-family:sans-serif;
+  padding:10px; background: rgba(0,0,0,0.5); box-sizing:border-box;
+  z-index:1000; display:flex; gap:20px; font-weight:bold;
+}
+#inventory {
+  position: fixed; bottom:20px; left:50%; transform:translateX(-50%);
+  display:flex; gap:5px; z-index:1000; background:rgba(0,0,0,0.7);
+  padding:10px; border-radius:8px;
+}
+.inv-item { width:40px; height:40px; border:2px solid white; display:flex; align-items:center; justify-content:center; cursor:pointer; }
+.inv-item.selected { border-color:yellow; }
+#hoverInfo {
+  position: fixed; pointer-events:none; background: rgba(0,0,0,0.7);
+  color:white; font-family:sans-serif; padding:2px 5px; border-radius:3px; z-index:2000; display:none;
+}
+#adminPanel {
+  position: fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+  background:rgba(0,0,0,0.9); padding:20px; border-radius:10px;
+  display:none; color:white; font-family:sans-serif; z-index:3000;
+}
+#adminPanel input[type=text], #adminPanel input[type=number], #adminPanel input[type=color] {
+  margin-bottom:10px; display:block; width:200px;
 }
 </style>
 </head>
@@ -28,13 +36,26 @@ canvas { display:block; background:#228B22; }
 <canvas id="gameCanvas"></canvas>
 <div id="ui">
   <span id="playerName">Naam: ?</span>
-  <span id="coords">X: 0 Y: 0</span>
-  <span id="online">Online: 0</span>
+  <span id="coords">X:0 Y:0</span>
+  <span id="online">Online:0</span>
+</div>
+<div id="inventory">
+  <div class="inv-item" data-type="floor" style="background:lightgreen;" title="Vloer"></div>
+  <div class="inv-item" data-type="wall" style="background:gray;" title="Muur"></div>
+  <div class="inv-item" data-type="wood" style="background:sienna;" title="Hout"></div>
+</div>
+<div id="hoverInfo"></div>
+<div id="adminPanel">
+  <h3>Admin Panel (u_yqrok)</h3>
+  <label>Naam: <input type="text" id="adminName"></label>
+  <label>Snelheid: <input type="number" id="adminSpeed" min="1" max="20"></label>
+  <label>Kleur: <input type="color" id="adminColor"></label>
+  <label>Grootte: <input type="number" id="adminSize" min="16" max="128"></label>
+  <label><input type="checkbox" id="trackPlayers"> Track andere spelers</label>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
-
 <script>
 const firebaseConfig = {
   apiKey: "AIzaSyBUgFsK2D_QQtMUQGu-GdMjj8FEeDRE9dA",
@@ -45,125 +66,186 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-// Canvas setup
+// Canvas
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
-let tileSize = 32;
-
-function resizeCanvas() {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-}
-window.addEventListener('resize', resizeCanvas);
+let tileSize=32;
+function resizeCanvas(){ canvas.width=window.innerWidth; canvas.height=window.innerHeight; }
+window.addEventListener('resize',resizeCanvas);
 resizeCanvas();
 
-// Movement
+// Input
 const keys = {};
-window.addEventListener('keydown', e => keys[e.key] = true);
-window.addEventListener('keyup', e => keys[e.key] = false);
+window.addEventListener('keydown', e=>keys[e.key]=true);
+window.addEventListener('keyup', e=>keys[e.key]=false);
 
-let playerId, playerName, player;
-
-// Setup player
-async function setupPlayer() {
-  // Uniek ID en naam
-  if(localStorage.getItem('playerId')) {
-    playerId = localStorage.getItem('playerId');
-    playerName = localStorage.getItem('playerName');
-  } else {
-    playerId = 'u_' + Math.random().toString(36).substr(2,5);
-    const t = await db.ref('userCount').transaction(count=>{
-      if(count===null) return 1;
-      return count+1;
-    });
-    playerName = t.snapshot.val();
-    localStorage.setItem('playerId', playerId);
-    localStorage.setItem('playerName', playerName);
+// Admin panel toggle
+const adminPanel = document.getElementById('adminPanel');
+let adminVisible=false;
+window.addEventListener('keydown', e=>{
+  if(e.key==='Tab'){
+    e.preventDefault();
+    if(playerId==='u_yqrok'){ adminVisible=!adminVisible; adminPanel.style.display=adminVisible?'block':'none'; }
   }
-  document.getElementById('playerName').innerText = 'Naam: ' + playerName;
+});
 
-  // Player init
-  player = { x: 0, y: 0, px:0, py:0, speed: 4 };
-  const playerRef = db.ref('players/' + playerId);
-  await playerRef.set(player);
-  playerRef.onDisconnect().remove();
-
-  // Start listening naar alle spelers
-  db.ref('players').on('value', snapshot => {
-    allPlayers = snapshot.val() || {};
-    document.getElementById('online').innerText = 'Online: ' + Object.keys(allPlayers).length;
-  });
-
+// Player setup
+let playerId, playerName, player, playerColor='red', playerSize=32, playerSpeed=4;
+async function setupPlayer(){
+  if(localStorage.getItem('playerId')){
+    playerId=localStorage.getItem('playerId');
+    playerName=localStorage.getItem('playerName');
+  } else {
+    playerId='u_'+Math.random().toString(36).substr(2,5);
+    const t=await db.ref('userCount').transaction(c=>(c||0)+1);
+    playerName="Speler"+t.snapshot.val();
+    localStorage.setItem('playerId',playerId);
+    localStorage.setItem('playerName',playerName);
+  }
+  document.getElementById('playerName').innerText='Naam:'+playerName;
+  player={x:0,y:0,px:0,py:0,speed:playerSpeed,w:playerSize,h:playerSize,color:playerColor,name:playerName};
+  await db.ref('players/'+playerId).set(player);
+  db.ref('players/'+playerId).onDisconnect().remove();
+  db.ref('players').on('value',snap=>{ allPlayers=snap.val()||{}; document.getElementById('online').innerText='Online:'+Object.keys(allPlayers).length; });
+  db.ref('tiles').on('value',snap=>{ Object.assign(tiles,snap.val()||{}); });
   requestAnimationFrame(gameLoop);
 }
-
-let allPlayers = {};
+let allPlayers={}, tiles={};
 setupPlayer();
 
-// Smooth movement helper
-function lerp(a,b,t){ return a + (b-a)*t; }
-const smoothSpeed = 0.15;
+// Smooth
+function lerp(a,b,t){ return a+(b-a)*t; }
+const smoothSpeed=0.15;
+
+// Inventory
+let selectedType=null;
+document.querySelectorAll('.inv-item').forEach(item=>{
+  item.addEventListener('click',()=>{
+    selectedType=item.dataset.type;
+    document.querySelectorAll('.inv-item').forEach(i=>i.classList.remove('selected'));
+    item.classList.add('selected');
+  });
+});
+
+// Mouse build
+canvas.addEventListener('click', e=>{
+  if(!player||!selectedType) return;
+  const rect=canvas.getBoundingClientRect();
+  const mouseX=e.clientX-rect.left;
+  const mouseY=e.clientY-rect.top;
+  const camX=canvas.width/2-player.px;
+  const camY=canvas.height/2-player.py;
+  const tileX=Math.floor((mouseX-camX)/tileSize);
+  const tileY=Math.floor((mouseY-camY)/tileSize);
+  const key=`${tileX}_${tileY}`;
+  if(keys['Shift']) db.ref('tiles/'+key).remove();
+  else db.ref('tiles/'+key).set({x:tileX,y:tileY,type:selectedType});
+});
+
+// Hover info
+const hoverInfo=document.getElementById('hoverInfo');
+canvas.addEventListener('mousemove', e=>{
+  const rect=canvas.getBoundingClientRect();
+  const mouseX=e.clientX-rect.left;
+  const mouseY=e.clientY-rect.top;
+  const camX=canvas.width/2-player.px;
+  const camY=canvas.height/2-player.py;
+  const tileX=Math.floor((mouseX-camX)/tileSize);
+  const tileY=Math.floor((mouseY-camY)/tileSize);
+  const key=`${tileX}_${tileY}`;
+  if(tiles[key]){
+    hoverInfo.style.display='block';
+    hoverInfo.style.left=e.clientX+10+'px';
+    hoverInfo.style.top=e.clientY+10+'px';
+    hoverInfo.innerText=blockTypes[tiles[key].type]?.name||'Blok';
+  } else hoverInfo.style.display='none';
+});
+
+// Block types
+const blockTypes={ floor:{color:'lightgreen',walkable:true,name:'Vloer'}, wall:{color:'gray',walkable:false,name:'Muur'}, wood:{color:'sienna',walkable:false,name:'Hout'} };
+
+// Admin inputs
+const adminName=document.getElementById('adminName');
+const adminSpeed=document.getElementById('adminSpeed');
+const adminColor=document.getElementById('adminColor');
+const adminSize=document.getElementById('adminSize');
+const trackPlayers=document.getElementById('trackPlayers');
+adminName.addEventListener('input',()=>{ playerName=adminName.value; });
+adminSpeed.addEventListener('input',()=>{ playerSpeed=parseFloat(adminSpeed.value); });
+adminColor.addEventListener('input',()=>{ playerColor=adminColor.value; });
+adminSize.addEventListener('input',()=>{ playerSize=parseFloat(adminSize.value); });
+
+// Collision
+function isColliding(px,py){
+  const corners=[[px,py],[px+playerSize-1,py],[px,py+playerSize-1],[px+playerSize-1,py+playerSize-1]];
+  for(const c of corners){
+    const tx=Math.floor(c[0]/tileSize);
+    const ty=Math.floor(c[1]/tileSize);
+    const key=`${tx}_${ty}`;
+    if(tiles[key] && !blockTypes[tiles[key].type].walkable) return true;
+  }
+  return false;
+}
 
 // Game loop
-function gameLoop() {
-  if(!player) { requestAnimationFrame(gameLoop); return; }
+function gameLoop(){
+  if(!player){ requestAnimationFrame(gameLoop); return; }
 
-  // Movement
-  let targetPx = player.px;
-  let targetPy = player.py;
-  if(keys['ArrowUp']) targetPy -= player.speed;
-  if(keys['ArrowDown']) targetPy += player.speed;
-  if(keys['ArrowLeft']) targetPx -= player.speed;
-  if(keys['ArrowRight']) targetPx += player.speed;
+  let targetPx=player.px;
+  let targetPy=player.py;
+  if(keys['ArrowUp'] && !isColliding(targetPx, targetPy-playerSpeed)) targetPy-=playerSpeed;
+  if(keys['ArrowDown'] && !isColliding(targetPx, targetPy+playerSpeed)) targetPy+=playerSpeed;
+  if(keys['ArrowLeft'] && !isColliding(targetPx-playerSpeed, targetPy)) targetPx-=playerSpeed;
+  if(keys['ArrowRight'] && !isColliding(targetPx+playerSpeed, targetPy)) targetPx+=playerSpeed;
 
-  player.px = lerp(player.px, targetPx, smoothSpeed);
-  player.py = lerp(player.py, targetPy, smoothSpeed);
+  player.px=lerp(player.px,targetPx,smoothSpeed);
+  player.py=lerp(player.py,targetPy,smoothSpeed);
+  player.x=Math.floor(player.px/tileSize);
+  player.y=Math.floor(player.py/tileSize);
 
-  player.x = Math.round(player.px / tileSize);
-  player.y = Math.round(player.py / tileSize);
+  // update Firebase
+  db.ref('players/'+playerId).set({x:player.x,y:player.y,px:player.px,py:player.py,w:playerSize,h:playerSize,color:playerColor,name:playerName});
 
-  // Update database
-  db.ref('players/' + playerId).set({ x: player.x, y: player.y, px: player.px, py: player.py });
-
-  // Camera
-  const camX = canvas.width/2 - player.px;
-  const camY = canvas.height/2 - player.py;
+  const camX=canvas.width/2-player.px;
+  const camY=canvas.height/2-player.py;
 
   // Background
-  ctx.fillStyle = '#228B22';
+  ctx.fillStyle='#228B22';
   ctx.fillRect(0,0,canvas.width,canvas.height);
 
   // Grid
-  const startCol = Math.floor(-camX / tileSize) - 1;
-  const endCol = Math.floor((canvas.width - camX) / tileSize) + 1;
-  const startRow = Math.floor(-camY / tileSize) - 1;
-  const endRow = Math.floor((canvas.height - camY) / tileSize) + 1;
+  const startCol=Math.floor(-camX/tileSize)-1;
+  const endCol=Math.floor((canvas.width-camX)/tileSize)+1;
+  const startRow=Math.floor(-camY/tileSize)-1;
+  const endRow=Math.floor((canvas.height-camY)/tileSize)+1;
+  ctx.strokeStyle='rgba(0,100,0,0.5)'; ctx.lineWidth=1;
+  for(let i=startCol;i<=endCol;i++){ ctx.beginPath(); ctx.moveTo(i*tileSize+camX,startRow*tileSize+camY); ctx.lineTo(i*tileSize+camX,endRow*tileSize+camY); ctx.stroke(); }
+  for(let j=startRow;j<=endRow;j++){ ctx.beginPath(); ctx.moveTo(startCol*tileSize+camX,j*tileSize+camY); ctx.lineTo(endCol*tileSize+camX,j*tileSize+camY); ctx.stroke(); }
 
-  ctx.strokeStyle = 'rgba(0,100,0,0.5)';
-  ctx.lineWidth = 1;
-  for(let i=startCol;i<=endCol;i++){
-    ctx.beginPath();
-    ctx.moveTo(i*tileSize + camX, startRow*tileSize + camY);
-    ctx.lineTo(i*tileSize + camX, endRow*tileSize + camY);
-    ctx.stroke();
-  }
-  for(let j=startRow;j<=endRow;j++){
-    ctx.beginPath();
-    ctx.moveTo(startCol*tileSize + camX, j*tileSize + camY);
-    ctx.lineTo(endCol*tileSize + camX, j*tileSize + camY);
-    ctx.stroke();
+  // Draw tiles
+  for(const key in tiles){
+    const t=tiles[key];
+    ctx.fillStyle=blockTypes[t.type]?.color||'white';
+    ctx.fillRect(t.x*tileSize+camX,t.y*tileSize+camY,tileSize,tileSize);
   }
 
   // Draw players
   for(const id in allPlayers){
-    const p = allPlayers[id];
-    ctx.fillStyle = id === playerId ? 'red' : 'cyan';
-    ctx.fillRect(p.px + camX, p.py + camY, tileSize, tileSize);
+    const p=allPlayers[id];
+    ctx.fillStyle=p.color || (id===playerId?'red':'cyan');
+    ctx.fillRect(p.px+camX,p.py+camY,p.w||32,p.h||32);
+    ctx.fillStyle='white'; ctx.font='12px sans-serif'; ctx.textAlign='center';
+    ctx.fillText(p.name,p.px+camX+(p.w||32)/2,p.py+camY-4);
+
+    if(playerId==='u_yqrok' && trackPlayers.checked && id!==playerId){
+      ctx.strokeStyle='yellow'; ctx.beginPath();
+      ctx.moveTo(player.px+camX+playerSize/2,player.py+camY+playerSize/2);
+      ctx.lineTo(p.px+camX+(p.w||32)/2,p.py+camY+(p.h||32)/2);
+      ctx.stroke();
+    }
   }
 
-  // Update UI
-  document.getElementById('coords').innerText = `X: ${player.x} Y: ${player.y}`;
-
+  document.getElementById('coords').innerText='X:'+player.x+' Y:'+player.y;
   requestAnimationFrame(gameLoop);
 }
 </script>
