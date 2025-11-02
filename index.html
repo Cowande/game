@@ -1,47 +1,33 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<meta charset="utf-8" />
-<title>Pixel Multiplayer - Clans, Admin & Textures</title>
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta charset="utf-8"/>
+<title>Pixel Multiplayer - Admin & Clans (Improved)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
 <style>
   :root{
-    --ui-bg: rgba(0,0,0,0.6);
+    --panel: rgba(10,10,10,0.9);
+    --muted: #bdbdbd;
     --accent: #ffd54f;
-    --muted: #d0d0d0;
-    --panel: #121212cc;
   }
-  html,body{height:100%;margin:0;background:#0b0b0b;color:white;font-family:Inter,system-ui,Arial;}
-  canvas{display:block;background:#101820;}
-  #topbar{
-    position:fixed;left:0;top:0;right:0;height:48px;background:var(--ui-bg);
-    display:flex;align-items:center;gap:18px;padding:8px 16px;box-sizing:border-box;z-index:2000;
-  }
-  #topbar span{font-weight:600}
-  #coords,#online,#playerClan{opacity:0.9}
-  /* center inventory modal */
-  .modal{
-    position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);min-width:320px;
-    background:var(--panel);border:1px solid rgba(255,255,255,0.08);padding:16px;border-radius:10px;
-    z-index:3000;color:#fff;display:none;
-  }
-  .modal h2{margin:0 0 8px 0;font-size:18px}
-  .modal .row{display:flex;gap:8px;flex-wrap:wrap}
-  .block-slot{width:72px;height:72px;border-radius:8px;border:2px solid rgba(255,255,255,0.08);
-    background:#000 center/cover no-repeat;display:flex;align-items:flex-end;padding:6px;box-sizing:border-box;cursor:pointer;}
-  .block-slot.selected{outline:3px solid var(--accent)}
-  button, input[type=text], input[type=number], select {
-    background:#0d0d0d;border:1px solid rgba(255,255,255,0.06);color:white;padding:8px;border-radius:6px;
-  }
-  #adminPanel{right:16px;top:64px;position:fixed;display:none;padding:12px;z-index:3000;background:var(--panel);border-radius:8px}
-  #clanPanel{left:16px;top:64px;position:fixed;display:none;padding:12px;z-index:3000;background:var(--panel);border-radius:8px;max-width:320px}
-  .tooltip{position:fixed;pointer-events:none;padding:6px 8px;background:#000c;border:1px solid rgba(255,255,255,0.06);border-radius:6px;display:none;z-index:4000}
-  .player-label{position:absolute;transform:translate(-50%,-100%);pointer-events:none;font-size:12px;text-shadow:0 2px 4px rgba(0,0,0,0.8)}
-  /* clan list */
-  .clan-item{padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.04);margin-bottom:8px;background:#0b0b0b}
-  .muted{color:var(--muted);font-size:13px}
-  /* small helpers */
+  html,body{height:100%;margin:0;background:#0b0b0b;color:#fff;font-family:Inter,Arial,system-ui;}
+  canvas{display:block;background:#1b262b;}
+  /* Topbar */
+  #topbar{position:fixed;left:0;top:0;right:0;height:48px;display:flex;align-items:center;padding:6px 12px;background:rgba(0,0,0,0.5);z-index:2000;gap:14px}
+  #topbar .muted{color:var(--muted);font-size:13px}
+  /* modal */
+  .modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);min-width:320px;background:var(--panel);padding:14px;border-radius:10px;border:1px solid rgba(255,255,255,0.06);z-index:3000;display:none}
+  .modal h2{margin:0 0 8px 0}
+  .row{display:flex;gap:8px;flex-wrap:wrap}
+  .slot{width:72px;height:72px;border-radius:8px;background:#0c0c0c;border:2px solid rgba(255,255,255,0.06);display:flex;align-items:flex-end;padding:6px;box-sizing:border-box;cursor:pointer;background-size:cover;background-position:center}
+  .slot.selected{outline:3px solid var(--accent)}
+  button,input[type=text],input[type=number],select{background:#0d0d0d;border:1px solid rgba(255,255,255,0.06);color:white;padding:8px;border-radius:6px}
   .small{font-size:13px}
+  /* admin */
+  #adminPanel{position:fixed;right:12px;top:64px;background:var(--panel);padding:12px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);z-index:3000;display:none;min-width:220px}
+  #clanPanel{position:fixed;left:12px;top:64px;background:var(--panel);padding:12px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);z-index:3000;display:none;min-width:260px;max-height:60vh;overflow:auto}
+  .clan-item{padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.04);margin-bottom:8px;background:#0b0b0b}
+  .tooltip{position:fixed;pointer-events:none;padding:6px 8px;background:#000c;border:1px solid rgba(255,255,255,0.06);border-radius:6px;display:none;z-index:4000}
 </style>
 </head>
 <body>
@@ -49,63 +35,101 @@
 <canvas id="game"></canvas>
 
 <div id="topbar">
-  <span id="playerNameLabel">Naam: ?</span>
-  <span id="playerClanLabel" style="margin-left:8px">Clan: -</span>
+  <div id="playerLabel">Naam: ?</div>
+  <div id="clanLabel" class="muted">Clan: -</div>
   <div style="flex:1"></div>
-  <span id="coords">X:0 Y:0</span>
-  <span id="online" style="margin-left:12px">Online: 0</span>
+  <div id="coords" class="muted">X:0 Y:0</div>
+  <div id="online" class="muted">Online: 0</div>
 </div>
 
-<!-- Inventory modal (E to open) -->
-<div class="modal" id="inventoryModal" aria-hidden="true">
+<!-- Inventory Modal -->
+<div class="modal" id="inventoryModal">
   <h2>Inventory</h2>
-  <div class="row" id="inventorySlots" style="margin-bottom:12px">
-    <!-- slots filled by JS -->
-  </div>
-  <div class="small muted">Klik een blok om te selecteren. Shift + klik op wereld = verwijderen.</div>
-  <div style="margin-top:12px;text-align:right">
-    <button id="invClose">Sluiten</button>
-  </div>
+  <div class="row" id="inventorySlots"></div>
+  <div style="margin-top:8px" class="small muted">E to open/close. Klik om te selecteren (klik opnieuw om te deselect). Shift+klik/Right-click op wereld om te verwijderen.</div>
+  <div style="text-align:right;margin-top:10px"><button id="invClose">Sluiten</button></div>
 </div>
 
-<!-- Clan modal (first-time or C) -->
-<div class="modal" id="clanModal" aria-hidden="true">
-  <h2>Clan & Nickname</h2>
-  <div id="firstTimeBlock">
-    <div class="small muted">Welkom! Kies eerst je bijnaam (dit kun je later NIET veranderen, alleen admin kan dat).</div>
-    <input id="nickInput" type="text" placeholder="Je bijnaam" style="width:100%;margin-top:8px">
-    <div style="height:10px"></div>
-    <div class="small muted">Kies bestaande clan of maak een nieuwe.</div>
-    <div id="clanListPlaceholder" style="max-height:160px;overflow:auto;margin-top:8px"></div>
-    <div style="margin-top:8px;display:flex;gap:8px">
-      <input id="newClanInput" type="text" placeholder="Nieuwe clan naam" />
-      <button id="createClanBtn">Maak clan</button>
-    </div>
-    <div style="margin-top:12px;text-align:right">
-      <button id="clanCloseBtn">Klaar</button>
-    </div>
-  </div>
+<!-- Clan & First-time Modal -->
+<div class="modal" id="firstModal">
+  <h2>Welkom — Kies je bijnaam & clan</h2>
+  <div class="small muted">Je bijnaam wordt opgeslagen en kan later alleen door admin worden aangepast.</div>
+  <div style="height:8px"></div>
+  <input id="nickInput" type="text" placeholder="Je bijnaam" style="width:100%"/>
+  <div style="height:10px"></div>
+  <div class="small muted">Kies een bestaande clan of maak een nieuwe (clannamen zijn uniek, case-insensitive).</div>
+  <div id="clanList" style="margin-top:8px;max-height:200px;overflow:auto"></div>
+  <div style="height:8px"></div>
+  <input id="newClanInput" type="text" placeholder="Nieuwe clan naam" style="width:60%"/>
+  <button id="createClanBtn">Maak clan</button>
+  <div style="text-align:right;margin-top:10px"><button id="firstDoneBtn">Klaar</button></div>
 </div>
 
-<!-- Admin panel (TAB only for admin id) -->
+<!-- Admin Panel -->
 <div id="adminPanel">
-  <div style="font-weight:700;margin-bottom:8px">Admin (u_yqrok)</div>
-  <label class="small">Naam <input id="adminName" type="text" class="small" /></label><br>
-  <label class="small">Snelheid <input id="adminSpeed" type="number" min="1" max="20" value="4" /></label><br>
-  <label class="small">Kleur <input id="adminColor" type="color" value="#ff4444" /></label><br>
-  <label class="small">Grootte <input id="adminSize" type="number" min="16" max="96" value="32" /></label><br>
-  <label class="small"><input id="adminTrack" type="checkbox"/> Track players</label><br>
-  <div style="margin-top:8px;text-align:right"><button id="adminApply">Apply</button></div>
+  <div style="font-weight:700;margin-bottom:6px">Admin (u_yqrok)</div>
+
+  <div style="margin-bottom:6px">
+    <label class="small">Select player</label>
+    <select id="adminPlayerSelect" style="width:100%"></select>
+  </div>
+
+  <div style="margin-bottom:6px">
+    <label class="small">Naam (admin kan wijzigen)</label>
+    <input id="adminChangeName" type="text" class="small" />
+  </div>
+
+  <div style="display:flex;gap:6px;margin-bottom:6px">
+    <div style="flex:1">
+      <label class="small">Grootte</label><br/>
+      <input id="adminChangeSize" type="number" min="16" max="128" class="small" />
+    </div>
+    <div style="flex:1">
+      <label class="small">Snelheid</label><br/>
+      <input id="adminChangeSpeed" type="number" min="1" max="30" class="small" />
+    </div>
+  </div>
+
+  <div style="margin-bottom:6px">
+    <label class="small">Kleur</label><br/>
+    <input id="adminChangeColor" type="color" />
+  </div>
+
+  <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">
+    <label class="small"><input id="adminTrack" type="checkbox"/> Track</label>
+    <button id="adminApplyBtn" style="flex:1">Apply</button>
+  </div>
+
+  <div style="display:flex;gap:6px;margin-bottom:6px">
+    <button id="adminKickBtn" style="flex:1;background:#5a1f1f">Kick</button>
+    <button id="adminTeleportBtn" style="flex:1">Teleport to</button>
+  </div>
+
+  <div style="border-top:1px solid rgba(255,255,255,0.04);padding-top:8px;margin-top:8px">
+    <div class="small muted">Danger</div>
+    <div style="display:flex;gap:6px;margin-top:6px">
+      <input id="resetConfirm" placeholder='type "RESET" to confirm' style="flex:1"/>
+      <button id="resetBtn" style="background:#6b1212">Reset DB</button>
+    </div>
+  </div>
 </div>
 
-<div class="tooltip" id="tooltip"></div>
+<!-- Clan Panel (toggle with C) -->
+<div id="clanPanel" style="display:none">
+  <div style="font-weight:700;margin-bottom:6px">Clans</div>
+  <div id="clanPanelList" style="max-height:40vh;overflow:auto"></div>
+  <div style="height:8px"></div>
+  <div style="text-align:right"><button id="clanCloseBtn">Sluiten</button></div>
+</div>
 
+<div class="tooltip" id="tooltip" style="display:none"></div>
+
+<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+
 <script>
-/* =========================
-   Configuration & Globals
-   ========================= */
+/* ================= Configuration ================= */
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyBUgFsK2D_QQtMUQGu-GdMjj8FEeDRE9dA",
   authDomain: "zever-7eca0.firebaseapp.com",
@@ -115,37 +139,34 @@ const FIREBASE_CONFIG = {
 firebase.initializeApp(FIREBASE_CONFIG);
 const db = firebase.database();
 
+/* ================= Globals & Textures ================= */
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
-let W=innerWidth, H=innerHeight;
-canvas.width=W; canvas.height=H;
-window.addEventListener('resize', ()=>{ W=innerWidth; H=innerHeight; canvas.width=W; canvas.height=H; });
+let W = innerWidth, H = innerHeight;
+canvas.width = W; canvas.height = H;
+window.addEventListener('resize', ()=>{ W = innerWidth; H = innerHeight; canvas.width = W; canvas.height = H; });
 
 const tileSize = 32;
 let camX = 0, camY = 0;
 
 const adminId = 'u_yqrok';
 
-/* textures - placeholders (put these files next to the HTML):
-   floor.png, wall.png, wood.png, grass.png, player.png
-*/
 const tex = {};
 ['floor','wall','wood','grass','player'].forEach(k=>{
   tex[k] = new Image();
   tex[k].src = k + '.png';
 });
 
-/* block definitions */
 const BLOCKS = [
-  { id:'floor', name:'Vloer', tex:'floor', solid:false },
-  { id:'wood',  name:'Hout',  tex:'wood',  solid:false },
-  { id:'wall',  name:'Muur',  tex:'wall',  solid:true },
-  { id:'grass', name:'Grass', tex:'grass', solid:false }
+  {id: 'floor', name: 'Vloer', tex: 'floor', solid: false},
+  {id: 'wood',  name: 'Hout',  tex: 'wood',  solid: false},
+  {id: 'wall',  name: 'Muur',  tex: 'wall',  solid: true},
+  {id: 'grass', name: 'Grass', tex: 'grass', solid: false}
 ];
 
-/* UI elements */
-const playerNameLabel = document.getElementById('playerNameLabel');
-const playerClanLabel = document.getElementById('playerClanLabel');
+/* UI refs */
+const playerLabel = document.getElementById('playerLabel');
+const clanLabel = document.getElementById('clanLabel');
 const coordsLabel = document.getElementById('coords');
 const onlineLabel = document.getElementById('online');
 const tooltip = document.getElementById('tooltip');
@@ -154,376 +175,443 @@ const invModal = document.getElementById('inventoryModal');
 const invSlots = document.getElementById('inventorySlots');
 const invClose = document.getElementById('invClose');
 
-const clanModal = document.getElementById('clanModal');
-const clanListPlaceholder = document.getElementById('clanListPlaceholder');
+const firstModal = document.getElementById('firstModal');
 const nickInput = document.getElementById('nickInput');
+const clanListEl = document.getElementById('clanList');
 const newClanInput = document.getElementById('newClanInput');
 const createClanBtn = document.getElementById('createClanBtn');
-const clanCloseBtn = document.getElementById('clanCloseBtn');
+const firstDoneBtn = document.getElementById('firstDoneBtn');
 
 const adminPanel = document.getElementById('adminPanel');
-const adminName = document.getElementById('adminName');
-const adminSpeed = document.getElementById('adminSpeed');
-const adminColor = document.getElementById('adminColor');
-const adminSize = document.getElementById('adminSize');
+const adminPlayerSelect = document.getElementById('adminPlayerSelect');
+const adminChangeName = document.getElementById('adminChangeName');
+const adminChangeSize = document.getElementById('adminChangeSize');
+const adminChangeSpeed = document.getElementById('adminChangeSpeed');
+const adminChangeColor = document.getElementById('adminChangeColor');
 const adminTrack = document.getElementById('adminTrack');
-const adminApply = document.getElementById('adminApply');
+const adminApplyBtn = document.getElementById('adminApplyBtn');
+const adminKickBtn = document.getElementById('adminKickBtn');
+const adminTeleportBtn = document.getElementById('adminTeleportBtn');
+const resetConfirm = document.getElementById('resetConfirm');
+const resetBtn = document.getElementById('resetBtn');
+
+const clanPanel = document.getElementById('clanPanel');
+const clanPanelList = document.getElementById('clanPanelList');
+const clanCloseBtn = document.getElementById('clanCloseBtn');
 
 /* runtime state */
 let keys = {};
-window.addEventListener('keydown', e=>{ keys[e.key]=true; });
-window.addEventListener('keyup', e=>{ keys[e.key]=false; });
+window.addEventListener('keydown', e=>{ keys[e.key] = true; });
+window.addEventListener('keyup', e=>{ keys[e.key] = false; });
 
-let local = {
-  id: null,
-  nickname: null,
-  clan: null
-};
+let local = { id: null, nickname: null, clan: null };
+let player = null;     // local player's runtime object
+let players = {};      // firebase snapshot
+let mapTiles = {};     // firebase snapshot (map keyed by "x,y")
+let clans = {};        // firebase snapshot
 
-let player = null; // local player object (px,py,x,y,speed,w,h,color,name,clan)
-let players = {};  // from firebase
-let mapTiles = {}; // from firebase: key "x,y" => {type}
+let selectedBlock = null; // nothing in-hand by default
 
-/* inventory selection: start with nothing */
-let selectedBlock = null;
-
-/* helper: show/hide */
-function show(el){ el.style.display='block'; el.setAttribute('aria-hidden','false'); }
-function hide(el){ el.style.display='none'; el.setAttribute('aria-hidden','true'); }
-
-/* =========================
-   Firebase listeners
-   ========================= */
+/* ================= Firebase listeners ================= */
 db.ref('players').on('value', snap=>{
   players = snap.val() || {};
   onlineLabel.innerText = 'Online: ' + Object.keys(players).length;
+  rebuildAdminPlayerList();
 });
 db.ref('map').on('value', snap=>{
   mapTiles = snap.val() || {};
 });
 db.ref('clans').on('value', snap=>{
-  // update clan list UI when modal open
-  if(clanModal.style.display !== 'none') buildClanList(snap.val() || {});
+  clans = snap.val() || {};
+  updateClanPanelList();
+  if(firstModal.style.display !== 'none') buildFirstModalClanList();
 });
 
-/* =========================
-   First-time nickname & clan flow
-   ========================= */
-function isFirstTime(){
-  return !localStorage.getItem('nickname');
-}
-function openFirstTimeModal(){
-  // populate clan list
-  db.ref('clans').once('value').then(snap=>{
-    buildClanList(snap.val() || {});
-    show(clanModal);
-  });
-}
-function buildClanList(clans){
-  clanListPlaceholder.innerHTML = '';
-  const c = clans || {};
-  const keys = Object.keys(c).sort();
-  if(keys.length === 0){
-    const el = document.createElement('div'); el.className='muted small'; el.innerText='Nog geen clans — maak er één!';
-    clanListPlaceholder.appendChild(el);
-    return;
-  }
-  keys.forEach(name=>{
-    const item = document.createElement('div');
-    item.className = 'clan-item';
-    const title = document.createElement('div'); title.style.fontWeight='700'; title.innerText = name;
-    const count = document.createElement('div'); count.className='muted'; count.innerText = 'Leden: ' + (c[name].members ? Object.keys(c[name].members).length : 0);
-    const btn = document.createElement('button'); btn.className='small'; btn.style.marginTop='6px'; btn.innerText='Join';
-    btn.onclick = ()=>{ joinClan(name); };
-    item.appendChild(title); item.appendChild(count); item.appendChild(btn);
-    clanListPlaceholder.appendChild(item);
-  });
-}
+/* ================= Utility helpers ================= */
+function worldKey(tx,ty){ return tx + ',' + ty; }
+function show(el){ el.style.display = 'block'; }
+function hide(el){ el.style.display = 'none'; }
+function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
 
-createClanBtn.addEventListener('click', ()=>{
-  const name = newClanInput.value.trim();
-  if(!name){ alert('Voer een clan naam in'); return; }
-  db.ref('clans/'+name+'/members/' + (local.id || 'tmp')).update({joined:true});
-  joinClan(name);
-});
-
-function joinClan(name){
-  if(!local.id) return alert('Nog niet klaar');
-  db.ref('clans/'+name+'/members/'+local.id).set({name:local.nickname});
-  local.clan = name;
-  localStorage.setItem('clan', name);
-  player.clan = name;
-  db.ref('players/'+local.id+'/clan').set(name);
-  playerClanLabelUpdate();
-  hide(clanModal);
-}
-
-/* nickname confirm */
-clanCloseBtn.addEventListener('click', ()=>{
-  const nick = nickInput.value.trim();
-  if(!nick){ alert('Voer een bijnaam in'); return; }
-  // save locally, not editable later by player
-  local.nickname = nick;
-  localStorage.setItem('nickname', nick);
-  // if a clan was selected earlier it is set by joinClan; otherwise default to none
-  hide(clanModal);
-  startOrUpdatePlayer();
-});
-
-/* =========================
-   Player init & update
-   ========================= */
-async function startOrUpdatePlayer(){
-  // ensure id exists
-  if(localStorage.getItem('playerId')){
-    local.id = localStorage.getItem('playerId');
-  } else {
-    local.id = 'u_' + Math.random().toString(36).substr(2,6);
-    localStorage.setItem('playerId', local.id);
-  }
-  // prefer stored nickname
-  if(!local.nickname){
-    local.nickname = localStorage.getItem('nickname') || local.nickname;
-  }
-  // clan
-  local.clan = localStorage.getItem('clan') || local.clan;
-
-  // initial player object
-  player = {
-    px:0, py:0, // pixel pos
-    x:0, y:0,  // grid pos
-    speed: 4,
-    w: 32, h: 32,
-    color: '#ff4444',
-    name: local.nickname || 'Speler',
-    clan: local.clan || null
-  };
-
-  // write to firebase
-  await db.ref('players/' + local.id).set(player);
-  db.ref('players/' + local.id).onDisconnect().remove();
-
-  // show labels
-  playerNameLabel.innerText = 'Naam: ' + (player.clan ? '['+player.clan+'] ' : '') + player.name;
-  playerClanLabel.innerText = 'Clan: ' + (player.clan || '-');
-}
-
-/* =========================
-   Inventory UI
-   ========================= */
+/* ================= Inventory UI ================= */
 function buildInventoryUI(){
   invSlots.innerHTML = '';
   BLOCKS.forEach(b=>{
-    const slot = document.createElement('div');
-    slot.className = 'block-slot';
-    slot.style.backgroundImage = `url(${b.tex}.png)`;
-    slot.title = b.name;
-    slot.onclick = ()=> {
-      // toggle select
+    const s = document.createElement('div');
+    s.className = 'slot';
+    s.style.backgroundImage = `url(${b.tex}.png)`;
+    s.title = b.name;
+    s.onclick = ()=>{
       if(selectedBlock && selectedBlock.id === b.id){
         selectedBlock = null;
-        slot.classList.remove('selected');
+        s.classList.remove('selected');
       } else {
         selectedBlock = b;
-        // clear other selected
-        invSlots.querySelectorAll('.block-slot').forEach(s=>s.classList.remove('selected'));
-        slot.classList.add('selected');
+        invSlots.querySelectorAll('.slot').forEach(x => x.classList.remove('selected'));
+        s.classList.add('selected');
       }
     };
     const label = document.createElement('div');
     label.style.fontSize='12px'; label.style.color='white'; label.style.textShadow='0 1px 2px black';
     label.innerText = b.name;
-    slot.appendChild(label);
-    invSlots.appendChild(slot);
+    s.appendChild(label);
+    invSlots.appendChild(s);
   });
 }
 invClose.addEventListener('click', ()=>{ hide(invModal); });
 
-/* =========================
-   Placement rules
-   - cannot place if a block already exists
-   - cannot place if a player currently occupies the tile
-   ========================= */
-function worldKey(tx,ty){ return tx + ',' + ty; }
+/* ================= First-time nickname & clan ================= */
+function isFirstTime(){ return !localStorage.getItem('nickname'); }
+
+function buildFirstModalClanList(){
+  clanListEl.innerHTML = '';
+  const keys = Object.keys(clans || {});
+  if(keys.length === 0){
+    const p = document.createElement('div'); p.className='small muted'; p.innerText = 'Nog geen clans. Maak de eerste!';
+    clanListEl.appendChild(p);
+    return;
+  }
+  keys.sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:'base'}));
+  keys.forEach(name=>{
+    const box = document.createElement('div');
+    box.className = 'clan-item';
+    const t = document.createElement('div'); t.style.fontWeight='700'; t.innerText = name;
+    const c = document.createElement('div'); c.className='muted small'; c.innerText = 'Leden: ' + (clans[name].members ? Object.keys(clans[name].members).length : 0);
+    const btn = document.createElement('button'); btn.style.marginTop='6px'; btn.innerText='Join';
+    btn.onclick = ()=> {
+      // join
+      if(!local.id) alert('Wacht even, speler niet klaar'); // shouldn't happen
+      else joinClan(name);
+      alert('Je zult de clan joinen zodra je klaar bent (of direct als je al bent aangemaakt).');
+    };
+    box.appendChild(t); box.appendChild(c); box.appendChild(btn);
+    clanListEl.appendChild(box);
+  });
+}
+
+createClanBtn.addEventListener('click', async ()=>{
+  const name = newClanInput.value.trim();
+  if(!name) return alert('Voer een clan naam in');
+  // check duplicates case-insensitive
+  const existing = Object.keys(clans || {}).find(c => c.toLowerCase() === name.toLowerCase());
+  if(existing) return alert('Die clan bestaat al (case-insensitive). Kies een andere naam.');
+  // create
+  if(!local.id){
+    // store choice locally for after player creation
+    local.clan = name;
+    localStorage.setItem('clan', name);
+    alert('Clan wordt aangemaakt zodra je klaar bent.');
+    return;
+  }
+  await db.ref('clans/' + name + '/members/' + local.id).set({ name: local.nickname || 'Speler', joinedAt: Date.now() });
+  local.clan = name;
+  localStorage.setItem('clan', name);
+  if(player){ player.clan = name; db.ref('players/' + local.id + '/clan').set(name); }
+  alert('Clan aangemaakt en je bent lid.');
+  buildFirstModalClanList();
+});
+
+firstDoneBtn.addEventListener('click', ()=>{
+  const nick = nickInput.value.trim();
+  if(!nick) return alert('Voer een bijnaam in (je kunt deze later niet zelf veranderen).');
+  local.nickname = nick;
+  localStorage.setItem('nickname', nick);
+  // if local.clan is set (via create earlier) ensure it's stored
+  if(local.clan) localStorage.setItem('clan', local.clan);
+  hide(firstModal);
+  startOrUpdatePlayer();
+});
+
+/* ================= Player init and update ================= */
+async function startOrUpdatePlayer(){
+  // id
+  if(localStorage.getItem('playerId')) local.id = localStorage.getItem('playerId');
+  else { local.id = 'u_' + Math.random().toString(36).substr(2,6); localStorage.setItem('playerId', local.id); }
+
+  if(!local.nickname) local.nickname = localStorage.getItem('nickname') || ('Speler' + Math.floor(Math.random()*9999));
+  if(!local.clan) local.clan = localStorage.getItem('clan') || null;
+
+  player = {
+    px: 0, py: 0, x: 0, y: 0,
+    speed: 4, w: 32, h: 32,
+    color: '#ff4444',
+    name: local.nickname,
+    clan: local.clan || null
+  };
+
+  // write to firebase & ensure remove on disconnect
+  await db.ref('players/' + local.id).set(player);
+  db.ref('players/' + local.id).onDisconnect().remove();
+
+  // if clan set, ensure member registered
+  if(local.clan) db.ref('clans/' + local.clan + '/members/' + local.id).set({ name: local.nickname, joinedAt: Date.now() });
+
+  // show labels
+  updateLabels();
+  requestAnimationFrame(mainLoop);
+}
+
+function updateLabels(){
+  playerLabel.innerText = 'Naam: ' + (player.clan ? '[' + player.clan + '] ' : '') + player.name;
+  clanLabel.innerText = 'Clan: ' + (player.clan || '-');
+}
+
+/* ================= Placement rules ================= */
 function tileOccupiedByPlayer(tx,ty){
   for(const id in players){
     const p = players[id];
-    // compare grid coords (assuming p.px/p.py are pixels)
-    const px = Math.floor((p.px + (p.w||32)/2) / tileSize);
-    const py = Math.floor((p.py + (p.h||32)/2) / tileSize);
-    if(px === tx && py === ty) return true;
+    if(!p || typeof p.px === 'undefined') continue;
+    const centerX = Math.floor((p.px + (p.w || 32) / 2) / tileSize);
+    const centerY = Math.floor((p.py + (p.h || 32) / 2) / tileSize);
+    if(centerX === tx && centerY === ty) return true;
   }
-  // also check local player
   if(player){
-    const lpx = Math.floor((player.px + player.w/2) / tileSize);
-    const lpy = Math.floor((player.py + player.h/2) / tileSize);
-    if(lpx === tx && lpy === ty) return true;
+    const lcx = Math.floor((player.px + player.w/2) / tileSize);
+    const lcy = Math.floor((player.py + player.h/2) / tileSize);
+    if(lcx === tx && lcy === ty) return true;
   }
   return false;
 }
 
-/* mouse -> world tile coords */
 function screenToTile(mx,my){
-  const wx = mx - (W/2 - player.px);
-  const wy = my - (H/2 - player.py);
-  const tx = Math.floor(wx / tileSize);
-  const ty = Math.floor(wy / tileSize);
-  return {tx,ty};
+  // camX,camY defined as: camX = W/2 - player.px; so worldX = mx - camX
+  const worldX = mx - camX;
+  const worldY = my - camY;
+  return { tx: Math.floor(worldX / tileSize), ty: Math.floor(worldY / tileSize) };
 }
 
-/* place/remove blocks */
+/* place block on click (left) if inventory selected */
 canvas.addEventListener('click', (ev)=>{
-  if(!selectedBlock) return; // nothing in hand
-  const r = canvas.getBoundingClientRect();
-  const mx = ev.clientX - r.left, my = ev.clientY - r.top;
+  if(!player || !selectedBlock) return;
+  const rect = canvas.getBoundingClientRect();
+  const mx = ev.clientX - rect.left, my = ev.clientY - rect.top;
   const {tx,ty} = screenToTile(mx,my);
   const key = worldKey(tx,ty);
-  // block exists?
-  if(mapTiles[key]) { alert('Er staat al een blok op die plek'); return; }
-  // player there?
-  if(tileOccupiedByPlayer(tx,ty)) { alert('Kan hier geen blok plaatsen: speler aanwezig'); return; }
+  if(mapTiles[key]) { alert('Er staat al een blok op die plek.'); return; }
+  if(tileOccupiedByPlayer(tx,ty)) { alert('Kan hier geen blok zetten: speler aanwezig.'); return; }
   // place
   db.ref('map/' + key).set({ type: selectedBlock.id });
 });
 
-/* right click to remove */
+/* remove block on right-click or shift+click */
 canvas.addEventListener('contextmenu', (ev)=>{
   ev.preventDefault();
-  const r = canvas.getBoundingClientRect();
-  const mx = ev.clientX - r.left, my = ev.clientY - r.top;
+  if(!player) return;
+  const rect = canvas.getBoundingClientRect();
+  const mx = ev.clientX - rect.left, my = ev.clientY - rect.top;
   const {tx,ty} = screenToTile(mx,my);
   const key = worldKey(tx,ty);
-  // only allow remove if you're admin or owner? For now anyone can remove
-  if(mapTiles[key]){
-    db.ref('map/' + key).remove();
+  if(mapTiles[key]) db.ref('map/' + key).remove();
+});
+canvas.addEventListener('click', (ev)=>{
+  if(ev.shiftKey && selectedBlock === null){ // shift+click with empty hand deletes
+    const rect = canvas.getBoundingClientRect();
+    const mx = ev.clientX - rect.left, my = ev.clientY - rect.top;
+    const {tx,ty} = screenToTile(mx,my);
+    const key = worldKey(tx,ty);
+    if(mapTiles[key]) db.ref('map/' + key).remove();
   }
 });
 
-/* =========================
-   Movement & collision
-   Strict collision: check all corners after intended move
-   ========================= */
-function isSolidAtTile(tx,ty){
+/* ================= Collision logic ================= */
+function isSolidAt(tx,ty){
   const key = worldKey(tx,ty);
   const tile = mapTiles[key];
   if(!tile) return false;
   const b = BLOCKS.find(bb => bb.id === tile.type);
-  return b ? b.solid : false;
+  return b ? !!b.solid : false;
 }
 
-/* check player AABB for collision at new px,py */
+/* check full AABB corners */
 function collidesAt(px,py){
-  // check four corners in world pixels -> tiles
   const corners = [
-    {x:px, y:py},
-    {x:px + player.w - 1, y:py},
-    {x:px, y:py + player.h - 1},
-    {x:px + player.w - 1, y:py + player.h - 1}
+    {x: px, y: py},
+    {x: px + player.w - 1, y: py},
+    {x: px, y: py + player.h - 1},
+    {x: px + player.w - 1, y: py + player.h - 1}
   ];
   for(const c of corners){
-    const tx = Math.floor((c.x + player.w/2) / tileSize); // center-based mapping to be robust
-    const ty = Math.floor((c.y + player.h/2) / tileSize);
-    if(isSolidAtTile(tx,ty)) return true;
+    const tx = Math.floor(c.x / tileSize);
+    const ty = Math.floor(c.y / tileSize);
+    if(isSolidAt(tx,ty)) return true;
   }
   return false;
 }
 
-/* =========================
-   Admin panel behavior
-   ========================= */
-window.addEventListener('keydown', (e)=>{
-  if(e.key === 'Tab'){
-    e.preventDefault();
-    if(local.id === adminId){
-      adminPanel.style.display = adminPanel.style.display === 'block' ? 'none' : 'block';
-      // fill current
-      adminName.value = player.name;
-      adminSpeed.value = player.speed;
-      adminColor.value = player.color;
-      adminSize.value = player.w;
-    } else {
-      // open clan panel as quick-access if not admin
-      clanModal.style.display = clanModal.style.display === 'block' ? 'none' : 'block';
-    }
-  } else if(e.key === 'e' || e.key === 'E'){
-    // toggle inventory
-    invModal.style.display = invModal.style.display === 'block' ? 'none' : 'block';
-  } else if(e.key === 'c' || e.key === 'C'){
-    clanModal.style.display = clanModal.style.display === 'block' ? 'none' : 'block';
+/* ================= Admin UI actions ================= */
+function rebuildAdminPlayerList(){
+  // populate adminPlayerSelect
+  const cur = adminPlayerSelect.value;
+  adminPlayerSelect.innerHTML = '';
+  const ids = Object.keys(players).sort();
+  ids.forEach(id=>{
+    const opt = document.createElement('option');
+    opt.value = id;
+    const label = players[id] && players[id].name ? players[id].name : id;
+    opt.text = (id === local.id ? '[YOU] ' : '') + label + ' (' + id + ')';
+    adminPlayerSelect.appendChild(opt);
+  });
+  if(cur) adminPlayerSelect.value = cur;
+}
+adminApplyBtn.addEventListener('click', async ()=>{
+  if(local.id !== adminId) return alert('Alleen admin kan dit doen.');
+  const sel = adminPlayerSelect.value;
+  if(!sel) return alert('Selecteer een speler.');
+  const newName = adminChangeName.value.trim();
+  const newSize = parseInt(adminChangeSize.value) || undefined;
+  const newSpeed = parseFloat(adminChangeSpeed.value) || undefined;
+  const newColor = adminChangeColor.value || undefined;
+  const update = {};
+  if(newName) update.name = newName;
+  if(newSize) { update.w = newSize; update.h = newSize; }
+  if(newSpeed) update.speed = newSpeed;
+  if(newColor) update.color = newColor;
+  if(Object.keys(update).length === 0) return alert('Niets om te veranderen.');
+  await db.ref('players/' + sel).update(update);
+  alert('Player updated.');
+});
+adminKickBtn.addEventListener('click', async ()=>{
+  if(local.id !== adminId) return alert('Alleen admin kan dit doen.');
+  const sel = adminPlayerSelect.value;
+  if(!sel) return alert('Selecteer speler');
+  if(!confirm('Kick speler ' + sel + ' ?')) return;
+  await db.ref('players/' + sel).remove();
+  alert('Player removed from DB (kicked).');
+});
+adminTeleportBtn.addEventListener('click', async ()=>{
+  if(local.id !== adminId) return alert('Alleen admin kan dit doen.');
+  const sel = adminPlayerSelect.value;
+  if(!sel) return alert('Selecteer speler');
+  const p = players[sel];
+  if(!p) return alert('Speler data niet gevonden.');
+  // teleport admin to that player's position
+  player.px = p.px || p.x * tileSize || 0;
+  player.py = p.py || p.y * tileSize || 0;
+  await db.ref('players/' + local.id).update({ px: player.px, py: player.py });
+  alert('Teleported to ' + sel);
+});
+resetBtn.addEventListener('click', async ()=>{
+  if(local.id !== adminId) return alert('Alleen admin kan DB resetten.');
+  const code = resetConfirm.value.trim();
+  if(code !== 'RESET') return alert('Type EXACT "RESET" in het veld om te bevestigen.');
+  if(!confirm('Weet je zeker? Dit verwijdert players, map en clans in de database.')) return;
+  try{
+    await db.ref('players').remove();
+    await db.ref('map').remove();
+    await db.ref('clans').remove();
+    resetConfirm.value = '';
+    alert('Database nodes verwijderd (players, map, clans).');
+    // re-create local player entry
+    if(player) await db.ref('players/' + local.id).set(player);
+  }catch(err){
+    alert('Reset failed: ' + err.message);
   }
 });
 
-adminApply.addEventListener('click', ()=>{
-  if(local.id !== adminId) return alert('Alleen admin');
-  // apply to player and update firebase
-  player.name = adminName.value || player.name;
-  player.speed = parseFloat(adminSpeed.value) || player.speed;
-  player.color = adminColor.value || player.color;
-  const size = parseInt(adminSize.value) || player.w;
-  player.w = player.h = size;
-  db.ref('players/' + local.id).update({ name: player.name, speed: player.speed, color: player.color, w: player.w, h: player.h});
-  // update label (admin can change nickname)
-  playerNameLabel.innerText = 'Naam: ' + (player.clan ? '['+player.clan+'] ' : '') + player.name;
-  adminPanel.style.display = 'none';
+/* ================= Clan Panel UI ================= */
+function updateClanPanelList(){
+  clanPanelList.innerHTML = '';
+  const names = Object.keys(clans || {});
+  names.sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:'base'}));
+  if(names.length === 0){
+    const p = document.createElement('div'); p.className='small'; p.innerText = 'Nog geen clans.';
+    clanPanelList.appendChild(p);
+    return;
+  }
+  names.forEach(name=>{
+    const el = document.createElement('div'); el.className = 'clan-item';
+    const title = document.createElement('div'); title.style.fontWeight='700'; title.innerText = name;
+    const members = clans[name].members ? Object.keys(clans[name].members) : [];
+    const memCount = document.createElement('div'); memCount.className='small muted'; memCount.innerText = 'Leden: ' + members.length;
+    const btnJoin = document.createElement('button'); btnJoin.style.marginTop='6px'; btnJoin.innerText='Join';
+    btnJoin.onclick = async ()=> {
+      if(!local.id) return alert('Wacht even tot je bent aangemaakt.');
+      // add to clan
+      await db.ref('clans/' + name + '/members/' + local.id).set({ name: local.nickname || player.name, joinedAt: Date.now() });
+      local.clan = name; localStorage.setItem('clan', name);
+      if(player) { player.clan = name; db.ref('players/' + local.id + '/clan').set(name); }
+      alert('Joined clan ' + name);
+      updateLabels();
+      updateClanPanelList();
+    };
+    el.appendChild(title); el.appendChild(memCount); el.appendChild(btnJoin);
+    clanPanelList.appendChild(el);
+  });
+}
+clanCloseBtn.addEventListener('click', ()=> hide(clanPanel));
+
+/* ================= Controls: open inventory/clan/admin ================= */
+window.addEventListener('keydown', (e)=>{
+  if(e.key === 'e' || e.key === 'E'){
+    if(invModal.style.display === 'block') hide(invModal);
+    else { buildInventoryUI(); show(invModal); }
+  } else if(e.key === 'c' || e.key === 'C'){
+    if(clanPanel.style.display === 'block') hide(clanPanel); else { updateClanPanelList(); show(clanPanel); }
+  } else if(e.key === 'Tab'){
+    e.preventDefault();
+    if(local.id === adminId) adminPanel.style.display = adminPanel.style.display === 'block' ? 'none' : 'block';
+    else clanPanel.style.display = clanPanel.style.display === 'block' ? 'none' : 'block';
+  }
 });
 
-/* =========================
-   Rendering & Main Loop
-   ========================= */
-function updateAndRender(){
-  // basic movement - intended pixel move
-  let intendedX = player.px;
-  let intendedY = player.py;
-  const moveSpeed = player.speed;
-  if(keys['ArrowUp'] || keys['w']) intendedY -= moveSpeed;
-  if(keys['ArrowDown'] || keys['s']) intendedY += moveSpeed;
-  if(keys['ArrowLeft'] || keys['a']) intendedX -= moveSpeed;
-  if(keys['ArrowRight'] || keys['d']) intendedX += moveSpeed;
+/* ================= Movement & main loop ================= */
+function mainLoop(){
+  if(!player) { requestAnimationFrame(mainLoop); return; }
+  // intended movement
+  let vx = 0, vy = 0;
+  const sp = player.speed;
+  if(keys['ArrowUp'] || keys['w']) vy -= sp;
+  if(keys['ArrowDown'] || keys['s']) vy += sp;
+  if(keys['ArrowLeft'] || keys['a']) vx -= sp;
+  if(keys['ArrowRight'] || keys['d']) vx += sp;
 
-  // do per-axis collision to avoid corner-sticking
-  // try X move
+  // per-axis try move to prevent corner gliding
+  const intendedX = player.px + vx;
+  const intendedY = player.py + vy;
+
+  // try X
   if(!collidesAt(intendedX, player.py)) player.px = intendedX;
-  // try Y move
+  // try Y
   if(!collidesAt(player.px, intendedY)) player.py = intendedY;
 
-  // update grid coords
+  // update grid coords as center tile
   player.x = Math.floor((player.px + player.w/2) / tileSize);
   player.y = Math.floor((player.py + player.h/2) / tileSize);
 
-  // push to firebase (lightweight)
+  // write lightweight update
   db.ref('players/' + local.id).update({ px: player.px, py: player.py, x: player.x, y: player.y, name: player.name, clan: player.clan, color: player.color, w: player.w, h: player.h });
 
-  // camera: center on local player
+  // camera
   camX = W/2 - player.px;
   camY = H/2 - player.py;
 
   // clear
-  ctx.fillStyle = '#2b2b2b';
+  ctx.fillStyle = '#1b2a2b';
   ctx.fillRect(0,0,W,H);
 
-  // draw grid world bounds (just visible area)
-  const startTileX = Math.floor((-camX) / tileSize) - 1;
-  const endTileX = Math.floor((W - camX) / tileSize) + 1;
-  const startTileY = Math.floor((-camY) / tileSize) - 1;
-  const endTileY = Math.floor((H - camY) / tileSize) + 1;
+  // draw visible tile range
+  const startTx = Math.floor((-camX) / tileSize) - 1;
+  const endTx = Math.floor((W - camX) / tileSize) + 1;
+  const startTy = Math.floor((-camY) / tileSize) - 1;
+  const endTy = Math.floor((H - camY) / tileSize) + 1;
 
-  // draw tiles
-  for(let tx = startTileX; tx <= endTileX; tx++){
-    for(let ty = startTileY; ty <= endTileY; ty++){
+  for(let tx = startTx; tx <= endTx; tx++){
+    for(let ty = startTy; ty <= endTy; ty++){
       const key = worldKey(tx,ty);
       const tile = mapTiles[key];
       if(tile){
         const b = BLOCKS.find(bb => bb.id === tile.type);
         const img = tex[b.tex];
-        if(img.complete) ctx.drawImage(img, tx*tileSize + camX, ty*tileSize + camY, tileSize, tileSize);
+        if(img && img.complete) ctx.drawImage(img, tx*tileSize + camX, ty*tileSize + camY, tileSize, tileSize);
         else {
-          ctx.fillStyle = b.solid ? '#666' : '#3a3';
+          ctx.fillStyle = b.solid ? '#555' : '#3a3';
           ctx.fillRect(tx*tileSize + camX, ty*tileSize + camY, tileSize, tileSize);
         }
       } else {
-        // optional light grid/ground texture fallback: draw grass as background tile
-        const img = tex['grass'];
-        if(img.complete) ctx.drawImage(img, tx*tileSize + camX, ty*tileSize + camY, tileSize, tileSize);
+        // background grass
+        const g = tex['grass'];
+        if(g && g.complete) ctx.drawImage(g, tx*tileSize + camX, ty*tileSize + camY, tileSize, tileSize);
+        else { ctx.fillStyle = '#234'; ctx.fillRect(tx*tileSize + camX, ty*tileSize + camY, tileSize, tileSize); }
       }
     }
   }
@@ -531,170 +619,157 @@ function updateAndRender(){
   // draw other players
   for(const id in players){
     const p = players[id];
-    // draw sprite if available
-    const imgP = tex['player'];
+    if(!p) continue;
     const pw = p.w || 32, ph = p.h || 32;
-    if(imgP.complete) ctx.drawImage(imgP, p.px + camX, p.py + camY, pw, ph);
-    else {
-      ctx.fillStyle = p.color || '#44f';
-      ctx.fillRect(p.px + camX, p.py + camY, pw, ph);
-    }
-    // name + clan
-    const displayName = (p.clan ? '['+p.clan+'] ' : '') + (p.name || 'Speler');
-    ctx.fillStyle = 'white';
-    ctx.font = '12px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(displayName, p.px + camX + (pw/2), p.py + camY - 6);
+    const imgP = tex['player'];
+    const drawX = (p.px || 0) + camX;
+    const drawY = (p.py || 0) + camY;
+    if(imgP && imgP.complete) ctx.drawImage(imgP, drawX, drawY, pw, ph);
+    else { ctx.fillStyle = p.color || '#44a'; ctx.fillRect(drawX, drawY, pw, ph); }
+    const displayName = (p.clan ? '[' + p.clan + '] ' : '') + (p.name || 'Speler');
+    ctx.fillStyle = 'white'; ctx.font = '12px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(displayName, drawX + pw/2, drawY - 6);
 
-    // if admin tracking
+    // admin tracking lines
     if(local.id === adminId && adminTrack.checked && id !== local.id){
-      ctx.strokeStyle = 'yellow';
-      ctx.beginPath();
+      ctx.strokeStyle = 'yellow'; ctx.beginPath();
       ctx.moveTo(player.px + camX + player.w/2, player.py + camY + player.h/2);
-      ctx.lineTo(p.px + camX + (pw/2), p.py + camY + (ph/2));
-      ctx.stroke();
+      ctx.lineTo(drawX + pw/2, drawY + ph/2); ctx.stroke();
     }
   }
 
-  // local player highlight on top
+  // local player drawn on top
   const lpImg = tex['player'];
-  if(lpImg.complete) ctx.drawImage(lpImg, player.px + camX, player.py + camY, player.w, player.h);
+  if(lpImg && lpImg.complete) ctx.drawImage(lpImg, player.px + camX, player.py + camY, player.w, player.h);
   else { ctx.fillStyle = player.color; ctx.fillRect(player.px + camX, player.py + camY, player.w, player.h); }
-  ctx.fillStyle = 'white';
-  ctx.font = '12px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText((player.clan? '['+player.clan+'] ':'') + player.name, player.px + camX + player.w/2, player.py + camY - 6);
+  ctx.fillStyle='white'; ctx.font='12px sans-serif'; ctx.textAlign='center';
+  ctx.fillText((player.clan ? '['+player.clan+'] ' : '') + player.name, player.px + camX + player.w/2, player.py + camY - 6);
 
-  // UI labels
   coordsLabel.innerText = 'X:' + player.x + ' Y:' + player.y;
-  playerNameLabel.innerText = 'Naam: ' + (player.clan? '['+player.clan+'] ':'') + player.name;
-  playerClanLabel.innerText = 'Clan: ' + (player.clan || '-');
+  playerLabel.innerText = 'Naam: ' + (player.clan ? '[' + player.clan + '] ' : '') + player.name;
+  clanLabel.innerText = 'Clan: ' + (player.clan || '-');
 
-  requestAnimationFrame(updateAndRender);
+  requestAnimationFrame(mainLoop);
 }
 
-/* helpers */
-function worldKey(tx,ty){ return tx + ',' + ty; }
+/* check players colliding with tile */
+function isAnyPlayerOnTile(tx,ty){
+  for(const id in players){
+    const p = players[id];
+    if(!p) continue;
+    const cx = Math.floor(((p.px || 0) + (p.w || 32)/2) / tileSize);
+    const cy = Math.floor(((p.py || 0) + (p.h || 32)/2) / tileSize);
+    if(cx === tx && cy === ty) return true;
+  }
+  if(player){
+    const cx = Math.floor((player.px + player.w/2) / tileSize);
+    const cy = Math.floor((player.py + player.h/2) / tileSize);
+    if(cx === tx && cy === ty) return true;
+  }
+  return false;
+}
 
-/* =========================
-   Init flows
-   ========================= */
+/* ================= Startup ================= */
 function init(){
-  // build inventory slots
+  // build inventory (nothing selected by default)
   buildInventoryUI();
-
-  // set initial selectedBlock to null (nothing held)
   selectedBlock = null;
 
-  // first-time flow
+  // if first time, show first modal
   if(isFirstTime()){
-    // show clan/nickname modal
-    show(clanModal);
-    // prefill clan list
-    db.ref('clans').once('value').then(snap=> buildClanList(snap.val()||{}) );
+    show(firstModal);
+    db.ref('clans').once('value').then(snap => { clans = snap.val() || {}; buildFirstModalClanList(); });
   } else {
-    // load nickname/clan from storage
+    // load local settings
     local.nickname = localStorage.getItem('nickname');
     local.clan = localStorage.getItem('clan') || null;
     startOrUpdatePlayer();
-    requestAnimationFrame(updateAndRender);
   }
 }
 
-/* helper: after first time user set nickname, call startOrUpdatePlayer() */
-startOrUpdatePlayer = async function(){
-  // (override earlier stub to ensure ready)
-  if(!local.id){
-    if(localStorage.getItem('playerId')) local.id = localStorage.getItem('playerId');
-    else { local.id = 'u_' + Math.random().toString(36).substr(2,6); localStorage.setItem('playerId', local.id); }
-  }
-  if(!local.nickname) local.nickname = localStorage.getItem('nickname') || ('Speler'+Math.floor(Math.random()*9999));
+/* when player finishes first modal? */
+async function startOrUpdatePlayer(){
+  // ensure id
+  if(localStorage.getItem('playerId')) local.id = localStorage.getItem('playerId');
+  else { local.id = 'u_' + Math.random().toString(36).substr(2,6); localStorage.setItem('playerId', local.id); }
+  // nickname & clan from localStorage
+  if(local.nickname === null || typeof local.nickname === 'undefined') local.nickname = localStorage.getItem('nickname');
+  if(!local.nickname) local.nickname = nickInput.value.trim() || 'Speler' + Math.floor(Math.random()*9999);
+  localStorage.setItem('nickname', local.nickname);
   if(!local.clan) local.clan = localStorage.getItem('clan') || null;
 
   player = {
-    px: 0, py: 0,
-    x: 0, y: 0,
-    speed: 4,
-    w: 32, h: 32,
+    px: 0, py: 0, x: 0, y: 0,
+    speed: 4, w: 32, h: 32,
     color: '#ff4444',
     name: local.nickname,
-    clan: local.clan
+    clan: local.clan || null
   };
 
+  // push to firebase
   await db.ref('players/' + local.id).set(player);
   db.ref('players/' + local.id).onDisconnect().remove();
 
-  // mark clan membership in db if set
-  if(local.clan) db.ref('clans/'+local.clan+'/members/'+local.id).set({ name: local.nickname });
+  // if clan selected, add to clan members
+  if(local.clan) await db.ref('clans/' + local.clan + '/members/' + local.id).set({ name: local.nickname, joinedAt: Date.now() });
 
-  // start loop
-  requestAnimationFrame(updateAndRender);
-};
+  updateLabels();
+  requestAnimationFrame(mainLoop);
+}
 
-/* when the user finishes clan/nickname first-time modal */
-clanCloseBtn.addEventListener('click', ()=>{
+/* Finish flow for first modal "Klaar" */
+firstDoneBtn.addEventListener('click', ()=>{
   const nick = nickInput.value.trim();
-  if(!nick){ alert('Voer een bijnaam in.'); return; }
-  local.nickname = nick;
-  localStorage.setItem('nickname', nick);
-  // if they typed a clan in the newClanInput, auto-create and join
+  if(!nick) return alert('Voer een bijnaam in.');
+  local.nickname = nick; localStorage.setItem('nickname', nick);
+  // if user typed clan name in newClanInput treat that as create
   const newClan = newClanInput.value.trim();
   if(newClan){
-    db.ref('clans/'+newClan+'/members/'+ (local.id || 'tmp') ).set({ name: nick });
-    local.clan = newClan;
-    localStorage.setItem('clan', newClan);
+    // check duplicate
+    const existing = Object.keys(clans || {}).find(c => c.toLowerCase() === newClan.toLowerCase());
+    if(existing) { alert('Die clan bestaat al. Kies een andere naam of join een bestaande clan.'); return; }
+    // create and join
+    db.ref('clans/' + newClan + '/members/' + (local.id || 'temp')).set({ name: nick, joinedAt: Date.now() });
+    local.clan = newClan; localStorage.setItem('clan', newClan);
   }
-  hide(clanModal);
+  hide(firstModal);
   startOrUpdatePlayer();
 });
 
-/* clicking join in clan list uses joinClan() defined earlier (in buildClanList)
-   we ensure joinClan uses local.id (available after startOrUpdatePlayer), so for first-time
-   clicking join we temporarily store the choice and apply after player creation. For simplicity,
-   join via the list after player exists (clan modal also shows on pressing C).
-*/
-
-/* joinClan helper (used by buildClanList) */
+/* If user uses join button in first modal (join known clan) call joinClan */
 function joinClan(name){
-  if(!local.id){
-    // not created yet; store choice and create after start
-    local.clan = name;
-    localStorage.setItem('clan', name);
-    // visually keep modal open; user must click "Klaar"
-    alert('Je clan wordt ingesteld zodra je klaar bent.');
-    return;
+  // if local.id not yet created, store choice; it will be applied after startOrUpdatePlayer
+  local.clan = name; localStorage.setItem('clan', name);
+  if(local.id){
+    db.ref('clans/' + name + '/members/' + local.id).set({ name: local.nickname || player.name, joinedAt: Date.now() });
+    if(player){ player.clan = name; db.ref('players/' + local.id + '/clan').set(name); }
+    alert('Joined clan ' + name);
+    updateLabels();
+  } else {
+    alert('Je clan wordt ingesteld zodra je klaar bent (na het invoeren van je bijnaam).');
   }
-  db.ref('clans/'+name+'/members/'+local.id).set({ name: local.nickname });
-  local.clan = name;
-  localStorage.setItem('clan', name);
-  if(player){ player.clan = name; db.ref('players/'+local.id+'/clan').set(name); }
-  hide(clanModal);
 }
 
-/* clicking create clan in first-time modal is wired above; also allow creation later */
-createClanBtn.addEventListener('click', ()=>{
-  const name = newClanInput.value.trim();
-  if(!name) return alert('Voer een clan naam in');
-  if(!local.id){
-    // store and will create after player creation
-    local.clan = name;
-    localStorage.setItem('clan', name);
-    alert('Clan wordt aangemaakt zodra je klaar bent.');
-    return;
+/* build first modal clan list helper (called when clans updated) */
+function buildFirstModalClanList(){
+  clanListEl.innerHTML = '';
+  const names = Object.keys(clans || {});
+  if(names.length === 0){
+    const p = document.createElement('div'); p.className='small muted'; p.innerText = 'Nog geen clans.';
+    clanListEl.appendChild(p); return;
   }
-  // create clan entry and add member
-  db.ref('clans/'+name+'/members/'+local.id).set({ name: local.nickname });
-  local.clan = name;
-  localStorage.setItem('clan', name);
-  if(player) { player.clan = name; db.ref('players/'+local.id+'/clan').set(name); }
-  hide(clanModal);
-});
+  names.sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:'base'}));
+  names.forEach(name=>{
+    const el = document.createElement('div'); el.className='clan-item';
+    const t = document.createElement('div'); t.style.fontWeight='700'; t.innerText = name;
+    const m = document.createElement('div'); m.className='small muted'; m.innerText = 'Leden: ' + (clans[name].members ? Object.keys(clans[name].members).length : 0);
+    const btn = document.createElement('button'); btn.style.marginTop='6px'; btn.innerText='Join'; btn.onclick = ()=> joinClan(name);
+    el.appendChild(t); el.appendChild(m); el.appendChild(btn);
+    clanListEl.appendChild(el);
+  });
+}
 
-/* when inventory toggled via UI close/open, selection persists, but nothing selected by default.
-   open inventory with E (handled above).
-*/
-
-/* finally, initialize */
+/* ================= Init ================= */
 init();
 
 </script>
